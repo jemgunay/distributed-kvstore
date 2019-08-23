@@ -1,0 +1,43 @@
+# KV store first, pub sub last
+
+1) Store data in map where key is hash -> could shard internally based on first char of hash.
+2) Once a node receives a new record, it should check with every other node that they have the record instead of each node
+requesting new records. Can have a queue for each node which stores these update requests - if the node is down for too
+long and the queue channel overflows, then write a list of update requests to a flat file to be consumed later?
+3) If a node comes back up, don't start serving to clients until it has processed all backlogged update requests from all other nodes.
+4) Don't complete publish request until it has successfully been stored to more than one node? Prevents data loss in the event of a node going down.
+5) Point the old hashes at new ones?
+
+var data = map[string]Record{
+    // hash is the hash of the original data record
+    "a2145h3434dsgfsd786dsg5ssdf872361": Record{
+        data: "this is an updated record!",
+        operations: []Operations{
+                {Create, "this is the original record...", 1118736918, 3},
+                {Update, "this is an updated record!", 1118737275, 2} // still one node that hasn't received this op
+            }
+        },
+    }
+}
+
+type Record struct {
+    data string
+    operations []Operation
+}
+
+type OperationType uint
+
+const (
+    Create OperationType = iota
+    Update
+    Delete
+)
+
+type Operation struct {
+    opType OperationType
+    delta string
+    timestamp uint8
+    nodeCoverage uint8
+}
+
+
