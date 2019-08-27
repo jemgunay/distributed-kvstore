@@ -32,6 +32,7 @@ func main() {
 		return
 	}
 
+	// start serving over gRPC
 	log.Printf("server listening on port %d", port)
 	if err = grpcServer.Serve(l); err != nil {
 		fmt.Printf("server has shut down: %s", err)

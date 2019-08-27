@@ -55,17 +55,17 @@ func Get(key string) ([]byte, int64, error) {
 	}
 
 	// retrieve value from map
-	r, ok := store[hash]
+	record, ok := store[hash]
 	if !ok {
 		return nil, 0, ErrNotFound
 	}
 	// determine if record was deleted on last operation
-	lastOp := r.latestOperation()
+	lastOp := record.latestOperation()
 	if lastOp.opType == deleteOp {
 		return nil, 0, ErrNotFound
 	}
 
-	return r.data, lastOp.timestamp, nil
+	return record.data, lastOp.timestamp, nil
 }
 
 func Put(key string, value []byte) error {

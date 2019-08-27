@@ -41,6 +41,10 @@ func main() {
 		log.Printf("failed to publish: %s", err)
 		return
 	}
+	if err := publish(client, "animals", []string{"dog", "cat", "hippo", "tiger", "zebra"}); err != nil {
+		log.Printf("failed to publish: %s", err)
+		return
+	}
 
 	// retrieve an existing record
 	var animals []string
