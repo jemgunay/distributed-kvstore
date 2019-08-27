@@ -23,6 +23,7 @@ func main() {
 	flag.Parse()
 
 	// connect to gRPC server
+	log.Printf("connecting to server on port %d", port)
 	conn, err := grpc.Dial(":"+strconv.Itoa(port), grpc.WithInsecure())
 	if err != nil {
 		fmt.Printf("failed to connect to server: %s", err)
@@ -31,19 +32,32 @@ func main() {
 	defer conn.Close()
 
 	client := pb.NewKVServiceClient(conn)
-	publish(client, "animals", []string{"dog", "cat", "hippo"})
-	publish(client, "countries", "this is a chunky piece of country data")
+	// publish some records
+	if err := publish(client, "animals", []string{"dog", "cat", "hippo"}); err != nil {
+		log.Printf("failed to publish: %s", err)
+		return
+	}
+	if err := publish(client, "misc_data", "this is a chunky piece of random data"); err != nil {
+		log.Printf("failed to publish: %s", err)
+		return
+	}
 
+	// retrieve an existing record
 	var animals []string
-	fetch(client, "animals", &animals)
-	fmt.Printf("fetched result for animals: %v", animals)
+	ts, err := fetch(client, "animals", &animals)
+	if err != nil {
+		log.Printf("failed to fetch: %s", err)
+		return
+	}
+	log.Printf("fetched animals: %v (created at %d)", animals, ts)
 }
 
 func publish(client pb.KVServiceClient, key string, value interface{}) error {
-	log.Printf("Publishing key: %s, value: %+v", key, value)
+	log.Printf("[publish] %s -> %+v", key, value)
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
+	// gob encode value into bytes
 	buf := &bytes.Buffer{}
 	encoder := gob.NewEncoder(buf)
 	if err := encoder.Encode(value); err != nil {
@@ -51,9 +65,8 @@ func publish(client pb.KVServiceClient, key string, value interface{}) error {
 	}
 
 	req := pb.PublishRequest{
-		Key:       key,
-		Value:     buf.Bytes(),
-		Timestamp: time.Now().UTC().UnixNano(),
+		Key:   key,
+		Value: buf.Bytes(),
 	}
 
 	if _, err := client.Publish(ctx, &req); err != nil {
@@ -64,7 +77,7 @@ func publish(client pb.KVServiceClient, key string, value interface{}) error {
 }
 
 func fetch(client pb.KVServiceClient, key string, data interface{}) (int64, error) {
-	log.Printf("Fetching value for key: %s", key)
+	log.Printf("[fetch] %s", key)
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
@@ -77,6 +90,7 @@ func fetch(client pb.KVServiceClient, key string, data interface{}) (int64, erro
 		return 0, fmt.Errorf("failed to publish: %s", err)
 	}
 
+	// gob decode bytes into specified type
 	buf := bytes.NewReader(resp.Value)
 	decoder := gob.NewDecoder(buf)
 	if err := decoder.Decode(data); err != nil {

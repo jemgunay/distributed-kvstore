@@ -6,7 +6,7 @@ service KVService {
     rpc Publish (PublishRequest) returns (Empty) {}
     rpc Fetch (FetchRequest) returns (FetchResponse) {}
     //    rpc Subscribe (SubscribeRequest) returns (stream FetchResponse) {}
-    rpc Sync (stream SyncMessage) returns (stream SyncMessage) {}
+    //    rpc Sync (stream SyncMessage) returns (stream SyncMessage) {}
 }
 
 message Empty {}
@@ -14,7 +14,6 @@ message Empty {}
 message PublishRequest {
     string key = 1;
     bytes value = 2;
-    int64 timestamp = 3;
 }
 
 message FetchRequest {

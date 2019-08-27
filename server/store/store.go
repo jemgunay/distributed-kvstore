@@ -9,6 +9,7 @@ import (
 )
 
 type Record struct {
+	key        string
 	data       []byte
 	operations []*Operation
 }
@@ -20,81 +21,99 @@ func (r Record) latestOperation() *Operation {
 	return r.operations[len(r.operations)-1]
 }
 
-type OperationType uint
+type operationType uint
 
 const (
-	UpdateOp OperationType = iota
-	DeleteOp
+	updateOp operationType = iota
+	deleteOp
 )
 
 type Operation struct {
-	opType       OperationType
+	opType       operationType
 	data         []byte
 	timestamp    int64
 	nodeCoverage uint8
 }
 
 var (
-	// key is hashed key
+	// map key is hashed key
 	store = map[uint64]*Record{}
 
-	ErrNotFound = errors.New("hash of key not found in store")
+	ErrNotFound   = errors.New("hash of key not found in store")
+	ErrInvalidKey = errors.New("invalid key provided")
 )
 
-func Get(key string) ([]byte, error) {
+func Get(key string) ([]byte, int64, error) {
+	if key == "" {
+		return nil, 0, ErrInvalidKey
+	}
+
 	// get hash of key
 	hash, err := hashKey(key)
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 
 	// retrieve value from map
 	r, ok := store[hash]
 	if !ok {
-		return nil, ErrNotFound
+		return nil, 0, ErrNotFound
 	}
 	// determine if record was deleted on last operation
-	if r.latestOperation().opType == DeleteOp {
-		return nil, ErrNotFound
+	lastOp := r.latestOperation()
+	if lastOp.opType == deleteOp {
+		return nil, 0, ErrNotFound
 	}
 
-	return r.data, nil
+	return r.data, lastOp.timestamp, nil
 }
 
 func Put(key string, value []byte) error {
-	return insertOperation(key, value, UpdateOp)
+	return insertOperation(key, value, updateOp)
 }
 
 func Delete(key string) error {
-	return insertOperation(key, nil, DeleteOp)
+	return insertOperation(key, nil, deleteOp)
 }
 
-func insertOperation(key string, value []byte, opType OperationType) error {
+func insertOperation(key string, value []byte, opType operationType) error {
+	if key == "" {
+		return ErrInvalidKey
+	}
+
 	// get hash of key
 	hash, err := hashKey(key)
 	if err != nil {
 		return err
 	}
 
-	// attempt to retrieve existing value from map
-	r, ok := store[hash]
-	// TODO: insert in order instead of sorting for every operation
+	// construct new operation record
 	newOp := &Operation{
 		opType:       opType,
 		data:         value,
 		timestamp:    time.Now().UTC().UnixNano(),
 		nodeCoverage: 1,
 	}
-	r.operations = append(r.operations, newOp)
 
-	// order operations by timestamp (if there is more than one operation)
-	if ok {
+	// attempt to retrieve existing value from map
+	r, ok := store[hash]
+	if !ok {
+		// if there is no existing record, create a new one
+		r = &Record{
+			operations: []*Operation{newOp},
+		}
+	} else {
+		// if record exists, append new operation order operations by timestamp (if there is more than one operation)
+		// TODO: insert in order instead of sorting for every operation
+		r.operations = append(r.operations, newOp)
+
 		sort.Slice(r.operations, func(i, j int) bool {
 			return r.operations[i].timestamp < r.operations[j].timestamp
 		})
 	}
 
 	// update record's data to reflect most recent operation
+	r.key = key
 	r.data = r.latestOperation().data
 
 	store[hash] = r
