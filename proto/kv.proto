@@ -1,0 +1,35 @@
+syntax = "proto3";
+
+package kv;
+
+service KVService {
+    rpc Publish (PublishRequest) returns (Empty) {}
+    rpc Fetch (FetchRequest) returns (FetchResponse) {}
+    //    rpc Subscribe (SubscribeRequest) returns (stream FetchResponse) {}
+    rpc Sync (stream SyncMessage) returns (stream SyncMessage) {}
+}
+
+message Empty {}
+
+message PublishRequest {
+    string key = 1;
+    bytes value = 2;
+    int64 timestamp = 3;
+}
+
+message FetchRequest {
+    string key = 1;
+}
+
+message FetchResponse {
+    bytes value = 1;
+    int64 timestamp = 2;
+}
+
+/*message SubscribeRequest {
+
+}*/
+
+message SyncMessage {
+
+}

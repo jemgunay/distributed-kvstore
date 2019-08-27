@@ -13,7 +13,8 @@ var data = map[string]Record{
     "a2145h3434dsgfsd786dsg5ssdf872361": Record{
         data: "this is an updated record!",
         operations: []Operations{
-                {Create, "this is the original record...", 1118736918, 3},
+                {Create, "this is the original record...", 1118736918, 1},
+                {Update, "this is an updated record!", 1118737275, 3} // still one node that hasn't received this op
                 {Update, "this is an updated record!", 1118737275, 2} // still one node that hasn't received this op
             }
         },
