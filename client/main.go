@@ -15,7 +15,10 @@ import (
 	pb "github.com/jemgunay/distributed-kvstore/proto"
 )
 
-var port = 6000
+var (
+	port          = 6000
+	clientTimeout = time.Second * 10
+)
 
 func main() {
 	// parse flags
@@ -46,6 +49,12 @@ func main() {
 			log.Printf("failed to publish %s: %s", d.key, err)
 			return
 		}
+	}
+
+	// delete an existing record
+	if err := client.Delete("animals"); err != nil {
+		log.Printf("failed to delete: %s", err)
+		return
 	}
 
 	// retrieve an existing record
@@ -80,7 +89,7 @@ func NewKVClient(port int) (*KVClient, error) {
 // Publish performs a publish request over gRPC in order to publish a key/value pair.
 func (c *KVClient) Publish(key string, value interface{}) error {
 	log.Printf("[publish] %s -> %+v", key, value)
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), clientTimeout)
 	defer cancel()
 
 	// gob encode value into bytes
@@ -106,7 +115,7 @@ func (c *KVClient) Publish(key string, value interface{}) error {
 // Fetch performs a fetch request over gRPC in order to retrieve the value that corresponds with the specified key.
 func (c *KVClient) Fetch(key string, value interface{}) (int64, error) {
 	log.Printf("[fetch] %s", key)
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), clientTimeout)
 	defer cancel()
 
 	req := pb.FetchRequest{
@@ -116,7 +125,7 @@ func (c *KVClient) Fetch(key string, value interface{}) (int64, error) {
 	// perform fetch request
 	resp, err := c.ServiceClient.Fetch(ctx, &req)
 	if err != nil {
-		return 0, fmt.Errorf("failed to publish: %s", err)
+		return 0, fmt.Errorf("failed to fetch: %s", err)
 	}
 
 	// gob decode bytes into specified type
@@ -127,4 +136,22 @@ func (c *KVClient) Fetch(key string, value interface{}) (int64, error) {
 	}
 
 	return resp.Timestamp, nil
+}
+
+// Delete performs a delete request over gRPC in order to delete the record that corresponds with the specified key.
+func (c *KVClient) Delete(key string) error {
+	log.Printf("[delete] %s", key)
+	ctx, cancel := context.WithTimeout(context.Background(), clientTimeout)
+	defer cancel()
+
+	req := pb.DeleteRequest{
+		Key: key,
+	}
+
+	// perform fetch request
+	if _, err := c.ServiceClient.Delete(ctx, &req); err != nil {
+		return fmt.Errorf("failed to delete: %s", err)
+	}
+
+	return nil
 }
