@@ -16,11 +16,28 @@ import (
 	pb "github.com/jemgunay/distributed-kvstore/proto"
 )
 
-var port = 6000
+// multiFlag satisfies the Value interface in order to parse multiple command line arguments of the same name into a
+// slice.
+type multiFlag []string
+
+func (m *multiFlag) String() string {
+	return fmt.Sprintf("%+v", *m)
+}
+
+func (m *multiFlag) Set(value string) error {
+	*m = append(*m, value)
+	return nil
+}
+
+var (
+	port           = 6000
+	nodesAddresses multiFlag
+)
 
 func main() {
 	// parse flags
-	flag.IntVar(&port, "port", port, "the target server's port")
+	flag.IntVar(&port, "port", port, "the port this server should server from")
+	flag.Var(&nodesAddresses, "node_address", "list of addresses that this node should attempt to synchronise with")
 	flag.Parse()
 
 	// create a store and server
