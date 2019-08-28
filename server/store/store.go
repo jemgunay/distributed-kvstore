@@ -23,7 +23,6 @@ func (r record) latestOperation() *operation {
 	return r.operations[len(r.operations)-1]
 }
 
-// operations types
 type operationType uint
 
 const (
@@ -40,10 +39,28 @@ type operation struct {
 	nodeCoverage uint8
 }
 
-var (
+// Store is a KV store.
+type Store struct {
 	// a map of key/value pairs where the key is the hashed key and the value is the data record
-	store = map[uint64]*record{}
+	store map[uint64]*record
 
+	// RequestChanBufSize is the size of each of the store poller request channel buffers.
+	RequestChanBufSize int64
+
+	getReqChan    chan getReq
+	putReqChan    chan putReq
+	deleteReqChan chan deleteReq
+}
+
+// NewStore initialises and returns a new KV store.
+func NewStore() *Store {
+	return &Store{
+		store:              map[uint64]*record{},
+		RequestChanBufSize: 1 << 10, // 1024
+	}
+}
+
+var (
 	// ErrNotFound indicates that the provided key does not exist in the store.
 	ErrNotFound = errors.New("key not found in store")
 	// ErrInvalidKey indicates that an invalid key (likely an empty string) was provided.
@@ -53,14 +70,14 @@ var (
 )
 
 // Get retrieves a record from the store.
-func Get(key string) ([]byte, int64, error) {
+func (s *Store) Get(key string) ([]byte, int64, error) {
 	req := getReq{
 		key:    key,
 		respCh: make(chan getResp),
 	}
 	// if buffer is full, fail request with error
 	select {
-	case getReqChan <- req:
+	case s.getReqChan <- req:
 		resp := <-req.respCh
 		return resp.data, resp.timestamp, resp.err
 	default:
@@ -69,7 +86,7 @@ func Get(key string) ([]byte, int64, error) {
 }
 
 // called by the poller to serialise get request operations on the store map
-func performGet(key string) getResp {
+func (s *Store) performGet(key string) getResp {
 	if key == "" {
 		return getResp{err: ErrInvalidKey}
 	}
@@ -81,7 +98,7 @@ func performGet(key string) getResp {
 	}
 
 	// retrieve value from map
-	record, ok := store[hash]
+	record, ok := s.store[hash]
 	if !ok {
 		return getResp{err: ErrNotFound}
 	}
@@ -95,7 +112,7 @@ func performGet(key string) getResp {
 }
 
 // Put either creates a new record or amends the state of an existing record in the store.
-func Put(key string, value []byte) error {
+func (s *Store) Put(key string, value []byte) error {
 	req := putReq{
 		key:    key,
 		value:  value,
@@ -103,7 +120,7 @@ func Put(key string, value []byte) error {
 	}
 	// if buffer is full, fail request with error
 	select {
-	case putReqChan <- req:
+	case s.putReqChan <- req:
 		return <-req.respCh
 	default:
 		return ErrPollerBufferFull
@@ -111,14 +128,14 @@ func Put(key string, value []byte) error {
 }
 
 // Delete performs a store record deletion.
-func Delete(key string) error {
+func (s *Store) Delete(key string) error {
 	req := deleteReq{
 		key:    key,
 		respCh: make(chan error),
 	}
 	// if buffer is full, fail request with error
 	select {
-	case deleteReqChan <- req:
+	case s.deleteReqChan <- req:
 		return <-req.respCh
 	default:
 		return ErrPollerBufferFull
@@ -126,7 +143,7 @@ func Delete(key string) error {
 }
 
 // called by the poller to serialise update and delete request operations on the store map
-func performInsertOperation(key string, value []byte, opType operationType) error {
+func (s *Store) performInsertOperation(key string, value []byte, opType operationType) error {
 	if key == "" {
 		return ErrInvalidKey
 	}
@@ -146,7 +163,7 @@ func performInsertOperation(key string, value []byte, opType operationType) erro
 	}
 
 	// attempt to retrieve existing value from map
-	r, ok := store[hash]
+	r, ok := s.store[hash]
 	if !ok {
 		// if there is no existing record, create a new one
 		r = &record{
@@ -166,7 +183,7 @@ func performInsertOperation(key string, value []byte, opType operationType) erro
 	r.key = key
 	r.data = r.latestOperation().data
 
-	store[hash] = r
+	s.store[hash] = r
 	return nil
 }
 

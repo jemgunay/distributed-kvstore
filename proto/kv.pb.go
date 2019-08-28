@@ -24,6 +24,56 @@ var _ = math.Inf
 // proto package needs to be updated.
 const _ = proto.ProtoPackageIsVersion3 // please upgrade the proto package
 
+type SyncRequest_OperationType int32
+
+const (
+	SyncRequest_UPDATE SyncRequest_OperationType = 0
+	SyncRequest_DELETE SyncRequest_OperationType = 1
+)
+
+var SyncRequest_OperationType_name = map[int32]string{
+	0: "UPDATE",
+	1: "DELETE",
+}
+
+var SyncRequest_OperationType_value = map[string]int32{
+	"UPDATE": 0,
+	"DELETE": 1,
+}
+
+func (x SyncRequest_OperationType) String() string {
+	return proto.EnumName(SyncRequest_OperationType_name, int32(x))
+}
+
+func (SyncRequest_OperationType) EnumDescriptor() ([]byte, []int) {
+	return fileDescriptor_2216fe83c9c12408, []int{5, 0}
+}
+
+type SyncRequest_SyncType int32
+
+const (
+	SyncRequest_SYN SyncRequest_SyncType = 0
+	SyncRequest_ACK SyncRequest_SyncType = 1
+)
+
+var SyncRequest_SyncType_name = map[int32]string{
+	0: "SYN",
+	1: "ACK",
+}
+
+var SyncRequest_SyncType_value = map[string]int32{
+	"SYN": 0,
+	"ACK": 1,
+}
+
+func (x SyncRequest_SyncType) String() string {
+	return proto.EnumName(SyncRequest_SyncType_name, int32(x))
+}
+
+func (SyncRequest_SyncType) EnumDescriptor() ([]byte, []int) {
+	return fileDescriptor_2216fe83c9c12408, []int{5, 1}
+}
+
 type Empty struct {
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`
@@ -227,66 +277,138 @@ func (m *DeleteRequest) GetKey() string {
 	return ""
 }
 
-type SyncMessage struct {
+type SyncRequest struct {
+	Key                  string   `protobuf:"bytes,1,opt,name=key,proto3" json:"key,omitempty"`
+	Value                string   `protobuf:"bytes,2,opt,name=value,proto3" json:"value,omitempty"`
+	Timestamp            int64    `protobuf:"varint,3,opt,name=timestamp,proto3" json:"timestamp,omitempty"`
+	Coverage             uint32   `protobuf:"varint,4,opt,name=coverage,proto3" json:"coverage,omitempty"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`
 	XXX_sizecache        int32    `json:"-"`
 }
 
-func (m *SyncMessage) Reset()         { *m = SyncMessage{} }
-func (m *SyncMessage) String() string { return proto.CompactTextString(m) }
-func (*SyncMessage) ProtoMessage()    {}
-func (*SyncMessage) Descriptor() ([]byte, []int) {
+func (m *SyncRequest) Reset()         { *m = SyncRequest{} }
+func (m *SyncRequest) String() string { return proto.CompactTextString(m) }
+func (*SyncRequest) ProtoMessage()    {}
+func (*SyncRequest) Descriptor() ([]byte, []int) {
 	return fileDescriptor_2216fe83c9c12408, []int{5}
 }
 
-func (m *SyncMessage) XXX_Unmarshal(b []byte) error {
-	return xxx_messageInfo_SyncMessage.Unmarshal(m, b)
+func (m *SyncRequest) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_SyncRequest.Unmarshal(m, b)
 }
-func (m *SyncMessage) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
-	return xxx_messageInfo_SyncMessage.Marshal(b, m, deterministic)
+func (m *SyncRequest) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_SyncRequest.Marshal(b, m, deterministic)
 }
-func (m *SyncMessage) XXX_Merge(src proto.Message) {
-	xxx_messageInfo_SyncMessage.Merge(m, src)
+func (m *SyncRequest) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_SyncRequest.Merge(m, src)
 }
-func (m *SyncMessage) XXX_Size() int {
-	return xxx_messageInfo_SyncMessage.Size(m)
+func (m *SyncRequest) XXX_Size() int {
+	return xxx_messageInfo_SyncRequest.Size(m)
 }
-func (m *SyncMessage) XXX_DiscardUnknown() {
-	xxx_messageInfo_SyncMessage.DiscardUnknown(m)
+func (m *SyncRequest) XXX_DiscardUnknown() {
+	xxx_messageInfo_SyncRequest.DiscardUnknown(m)
 }
 
-var xxx_messageInfo_SyncMessage proto.InternalMessageInfo
+var xxx_messageInfo_SyncRequest proto.InternalMessageInfo
+
+func (m *SyncRequest) GetKey() string {
+	if m != nil {
+		return m.Key
+	}
+	return ""
+}
+
+func (m *SyncRequest) GetValue() string {
+	if m != nil {
+		return m.Value
+	}
+	return ""
+}
+
+func (m *SyncRequest) GetTimestamp() int64 {
+	if m != nil {
+		return m.Timestamp
+	}
+	return 0
+}
+
+func (m *SyncRequest) GetCoverage() uint32 {
+	if m != nil {
+		return m.Coverage
+	}
+	return 0
+}
+
+type SyncResponse struct {
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
+}
+
+func (m *SyncResponse) Reset()         { *m = SyncResponse{} }
+func (m *SyncResponse) String() string { return proto.CompactTextString(m) }
+func (*SyncResponse) ProtoMessage()    {}
+func (*SyncResponse) Descriptor() ([]byte, []int) {
+	return fileDescriptor_2216fe83c9c12408, []int{6}
+}
+
+func (m *SyncResponse) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_SyncResponse.Unmarshal(m, b)
+}
+func (m *SyncResponse) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_SyncResponse.Marshal(b, m, deterministic)
+}
+func (m *SyncResponse) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_SyncResponse.Merge(m, src)
+}
+func (m *SyncResponse) XXX_Size() int {
+	return xxx_messageInfo_SyncResponse.Size(m)
+}
+func (m *SyncResponse) XXX_DiscardUnknown() {
+	xxx_messageInfo_SyncResponse.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_SyncResponse proto.InternalMessageInfo
 
 func init() {
+	proto.RegisterEnum("kv.SyncRequest_OperationType", SyncRequest_OperationType_name, SyncRequest_OperationType_value)
+	proto.RegisterEnum("kv.SyncRequest_SyncType", SyncRequest_SyncType_name, SyncRequest_SyncType_value)
 	proto.RegisterType((*Empty)(nil), "kv.Empty")
 	proto.RegisterType((*PublishRequest)(nil), "kv.PublishRequest")
 	proto.RegisterType((*FetchRequest)(nil), "kv.FetchRequest")
 	proto.RegisterType((*FetchResponse)(nil), "kv.FetchResponse")
 	proto.RegisterType((*DeleteRequest)(nil), "kv.DeleteRequest")
-	proto.RegisterType((*SyncMessage)(nil), "kv.SyncMessage")
+	proto.RegisterType((*SyncRequest)(nil), "kv.SyncRequest")
+	proto.RegisterType((*SyncResponse)(nil), "kv.SyncResponse")
 }
 
 func init() { proto.RegisterFile("kv.proto", fileDescriptor_2216fe83c9c12408) }
 
 var fileDescriptor_2216fe83c9c12408 = []byte{
-	// 246 bytes of a gzipped FileDescriptorProto
-	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0x74, 0x90, 0x3f, 0x4f, 0xc3, 0x30,
-	0x10, 0xc5, 0xeb, 0x56, 0x69, 0xc9, 0xd1, 0xa0, 0x72, 0x62, 0xa8, 0x2a, 0x86, 0xe0, 0x29, 0x62,
-	0xf0, 0x00, 0x0b, 0x3b, 0x7f, 0x16, 0x84, 0x84, 0x5c, 0x89, 0x3d, 0x8d, 0x4e, 0x10, 0x39, 0x69,
-	0x4c, 0xed, 0x58, 0xca, 0xc7, 0xe0, 0x1b, 0xa3, 0xd8, 0x95, 0x9a, 0x0c, 0xdd, 0xec, 0x67, 0xdf,
-	0xbb, 0xf7, 0x7b, 0x70, 0xa1, 0x9c, 0xd0, 0x87, 0xc6, 0x36, 0x38, 0x55, 0x8e, 0x2f, 0x20, 0x7a,
-	0xad, 0xb5, 0xed, 0xf8, 0x13, 0x5c, 0x7d, 0xb6, 0xbb, 0xaa, 0x34, 0x3f, 0x92, 0x7e, 0x5b, 0x32,
-	0x16, 0x57, 0x30, 0x53, 0xd4, 0xad, 0x59, 0xca, 0xb2, 0x58, 0xf6, 0x47, 0xbc, 0x81, 0xc8, 0xe5,
-	0x55, 0x4b, 0xeb, 0x69, 0xca, 0xb2, 0xa5, 0x0c, 0x17, 0x9e, 0xc2, 0xf2, 0x8d, 0x6c, 0x71, 0x7e,
-	0x8e, 0x3f, 0x43, 0x72, 0xfc, 0x61, 0x74, 0xb3, 0x37, 0x74, 0x32, 0x62, 0x03, 0x23, 0xbc, 0x85,
-	0xd8, 0x96, 0x35, 0x19, 0x9b, 0xd7, 0xda, 0xaf, 0x98, 0xc9, 0x93, 0xc0, 0xef, 0x20, 0x79, 0xa1,
-	0x8a, 0x2c, 0x9d, 0xdf, 0x93, 0xc0, 0xe5, 0xb6, 0xdb, 0x17, 0x1f, 0x64, 0x4c, 0xfe, 0x4d, 0x0f,
-	0x7f, 0x0c, 0xe2, 0xf7, 0xaf, 0x2d, 0x1d, 0x5c, 0x59, 0x10, 0xde, 0xc3, 0xe2, 0x08, 0x88, 0x28,
-	0x94, 0x13, 0x63, 0xda, 0x4d, 0xdc, 0x6b, 0xa1, 0x8a, 0x09, 0x0a, 0x88, 0x7c, 0x60, 0x5c, 0xf5,
-	0xea, 0x90, 0x6e, 0x73, 0x3d, 0x50, 0x02, 0x0d, 0x9f, 0x60, 0x06, 0xf3, 0x90, 0x0d, 0xfd, 0xf3,
-	0x28, 0xe7, 0xc8, 0x79, 0x37, 0xf7, 0xd5, 0x3f, 0xfe, 0x07, 0x00, 0x00, 0xff, 0xff, 0x45, 0x47,
-	0xe8, 0xf9, 0x86, 0x01, 0x00, 0x00,
+	// 351 bytes of a gzipped FileDescriptorProto
+	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0x8c, 0x52, 0xc1, 0x6e, 0xaa, 0x50,
+	0x10, 0xe5, 0x8a, 0x8a, 0xcc, 0x13, 0x1f, 0x6f, 0xf2, 0x16, 0x86, 0xb8, 0xa0, 0x77, 0x53, 0xd2,
+	0x05, 0x6d, 0xec, 0xa2, 0xdd, 0x1a, 0xa5, 0x1b, 0x9b, 0xd6, 0xa0, 0x6d, 0xd2, 0x25, 0x9a, 0x49,
+	0x6b, 0x50, 0xa1, 0x70, 0x25, 0xe1, 0x2b, 0xfa, 0x37, 0xfd, 0xbe, 0xe6, 0x82, 0xad, 0xd8, 0xd4,
+	0xa4, 0x2b, 0x66, 0xce, 0x0c, 0xe7, 0x0c, 0xe7, 0x00, 0xad, 0x30, 0x73, 0xe3, 0x24, 0x12, 0x11,
+	0xd6, 0xc2, 0x8c, 0x6b, 0xd0, 0xf0, 0xd6, 0xb1, 0xc8, 0xf9, 0x35, 0x74, 0x26, 0xdb, 0xf9, 0x6a,
+	0x99, 0xbe, 0xf8, 0xf4, 0xba, 0xa5, 0x54, 0xa0, 0x09, 0x6a, 0x48, 0x79, 0x97, 0xd9, 0xcc, 0xd1,
+	0x7d, 0x59, 0xe2, 0x7f, 0x68, 0x64, 0xc1, 0x6a, 0x4b, 0xdd, 0x9a, 0xcd, 0x9c, 0xb6, 0x5f, 0x36,
+	0xdc, 0x86, 0xf6, 0x0d, 0x89, 0xc5, 0xf1, 0xf7, 0xf8, 0x10, 0x8c, 0xdd, 0x46, 0x1a, 0x47, 0x9b,
+	0x94, 0xf6, 0x44, 0xac, 0x42, 0x84, 0x3d, 0xd0, 0xc5, 0x72, 0x4d, 0xa9, 0x08, 0xd6, 0x71, 0x21,
+	0xa1, 0xfa, 0x7b, 0x80, 0x9f, 0x80, 0x31, 0xa2, 0x15, 0x09, 0x3a, 0xae, 0xf3, 0xce, 0xe0, 0xcf,
+	0x34, 0xdf, 0x2c, 0x7e, 0xf9, 0x05, 0xfa, 0x8f, 0xc2, 0xea, 0x37, 0x61, 0xb4, 0xa0, 0xb5, 0x88,
+	0x32, 0x4a, 0x82, 0x67, 0xea, 0xd6, 0x6d, 0xe6, 0x18, 0xfe, 0x57, 0xcf, 0x4f, 0xc1, 0xb8, 0x8f,
+	0x29, 0x09, 0xc4, 0x32, 0xda, 0xcc, 0xf2, 0x98, 0x10, 0xa0, 0xf9, 0x30, 0x19, 0x0d, 0x66, 0x9e,
+	0xa9, 0xc8, 0x7a, 0xe4, 0xdd, 0x7a, 0x33, 0xcf, 0x64, 0xbc, 0x07, 0x2d, 0x79, 0x59, 0xb1, 0xa3,
+	0x81, 0x3a, 0x7d, 0xba, 0x33, 0x15, 0x59, 0x0c, 0x86, 0x63, 0x93, 0xf1, 0x0e, 0xb4, 0xcb, 0xbb,
+	0x4b, 0x7f, 0xfa, 0x6f, 0x0c, 0xb4, 0xf1, 0xe3, 0x54, 0x44, 0x09, 0xe1, 0x19, 0x68, 0xbb, 0x60,
+	0x10, 0xdd, 0x30, 0x73, 0x0f, 0x53, 0xb2, 0x74, 0x89, 0x95, 0x11, 0x2a, 0xe8, 0x42, 0xa3, 0x30,
+	0x1a, 0x4d, 0x89, 0x56, 0x53, 0xb1, 0xfe, 0x55, 0x90, 0x52, 0x85, 0x2b, 0xe8, 0x40, 0xb3, 0xf4,
+	0x14, 0x8b, 0xf1, 0x81, 0xbf, 0x07, 0xcc, 0xfd, 0x2b, 0xa8, 0xcb, 0x0b, 0xf1, 0x7c, 0xf7, 0xfc,
+	0x2b, 0x87, 0x15, 0xaf, 0x2d, 0x73, 0x0f, 0x7c, 0xd2, 0x3b, 0xec, 0x82, 0xcd, 0x9b, 0xc5, 0xbf,
+	0x76, 0xf9, 0x11, 0x00, 0x00, 0xff, 0xff, 0x5f, 0xd0, 0x51, 0xe0, 0x77, 0x02, 0x00, 0x00,
 }
 
 // Reference imports to suppress errors if they are not otherwise used.
@@ -297,146 +419,250 @@ var _ grpc.ClientConn
 // is compatible with the grpc package it is being compiled against.
 const _ = grpc.SupportPackageIsVersion4
 
-// KVServiceClient is the client API for KVService service.
+// KVStoreClient is the client API for KVStore service.
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://godoc.org/google.golang.org/grpc#ClientConn.NewStream.
-type KVServiceClient interface {
+type KVStoreClient interface {
 	Publish(ctx context.Context, in *PublishRequest, opts ...grpc.CallOption) (*Empty, error)
 	Fetch(ctx context.Context, in *FetchRequest, opts ...grpc.CallOption) (*FetchResponse, error)
 	Delete(ctx context.Context, in *DeleteRequest, opts ...grpc.CallOption) (*Empty, error)
 }
 
-type kVServiceClient struct {
+type kVStoreClient struct {
 	cc *grpc.ClientConn
 }
 
-func NewKVServiceClient(cc *grpc.ClientConn) KVServiceClient {
-	return &kVServiceClient{cc}
+func NewKVStoreClient(cc *grpc.ClientConn) KVStoreClient {
+	return &kVStoreClient{cc}
 }
 
-func (c *kVServiceClient) Publish(ctx context.Context, in *PublishRequest, opts ...grpc.CallOption) (*Empty, error) {
+func (c *kVStoreClient) Publish(ctx context.Context, in *PublishRequest, opts ...grpc.CallOption) (*Empty, error) {
 	out := new(Empty)
-	err := c.cc.Invoke(ctx, "/kv.KVService/Publish", in, out, opts...)
+	err := c.cc.Invoke(ctx, "/kv.KVStore/Publish", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-func (c *kVServiceClient) Fetch(ctx context.Context, in *FetchRequest, opts ...grpc.CallOption) (*FetchResponse, error) {
+func (c *kVStoreClient) Fetch(ctx context.Context, in *FetchRequest, opts ...grpc.CallOption) (*FetchResponse, error) {
 	out := new(FetchResponse)
-	err := c.cc.Invoke(ctx, "/kv.KVService/Fetch", in, out, opts...)
+	err := c.cc.Invoke(ctx, "/kv.KVStore/Fetch", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-func (c *kVServiceClient) Delete(ctx context.Context, in *DeleteRequest, opts ...grpc.CallOption) (*Empty, error) {
+func (c *kVStoreClient) Delete(ctx context.Context, in *DeleteRequest, opts ...grpc.CallOption) (*Empty, error) {
 	out := new(Empty)
-	err := c.cc.Invoke(ctx, "/kv.KVService/Delete", in, out, opts...)
+	err := c.cc.Invoke(ctx, "/kv.KVStore/Delete", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-// KVServiceServer is the server API for KVService service.
-type KVServiceServer interface {
+// KVStoreServer is the server API for KVStore service.
+type KVStoreServer interface {
 	Publish(context.Context, *PublishRequest) (*Empty, error)
 	Fetch(context.Context, *FetchRequest) (*FetchResponse, error)
 	Delete(context.Context, *DeleteRequest) (*Empty, error)
 }
 
-// UnimplementedKVServiceServer can be embedded to have forward compatible implementations.
-type UnimplementedKVServiceServer struct {
+// UnimplementedKVStoreServer can be embedded to have forward compatible implementations.
+type UnimplementedKVStoreServer struct {
 }
 
-func (*UnimplementedKVServiceServer) Publish(ctx context.Context, req *PublishRequest) (*Empty, error) {
+func (*UnimplementedKVStoreServer) Publish(ctx context.Context, req *PublishRequest) (*Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method Publish not implemented")
 }
-func (*UnimplementedKVServiceServer) Fetch(ctx context.Context, req *FetchRequest) (*FetchResponse, error) {
+func (*UnimplementedKVStoreServer) Fetch(ctx context.Context, req *FetchRequest) (*FetchResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method Fetch not implemented")
 }
-func (*UnimplementedKVServiceServer) Delete(ctx context.Context, req *DeleteRequest) (*Empty, error) {
+func (*UnimplementedKVStoreServer) Delete(ctx context.Context, req *DeleteRequest) (*Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method Delete not implemented")
 }
 
-func RegisterKVServiceServer(s *grpc.Server, srv KVServiceServer) {
-	s.RegisterService(&_KVService_serviceDesc, srv)
+func RegisterKVStoreServer(s *grpc.Server, srv KVStoreServer) {
+	s.RegisterService(&_KVStore_serviceDesc, srv)
 }
 
-func _KVService_Publish_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+func _KVStore_Publish_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(PublishRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(KVServiceServer).Publish(ctx, in)
+		return srv.(KVStoreServer).Publish(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: "/kv.KVService/Publish",
+		FullMethod: "/kv.KVStore/Publish",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(KVServiceServer).Publish(ctx, req.(*PublishRequest))
+		return srv.(KVStoreServer).Publish(ctx, req.(*PublishRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
-func _KVService_Fetch_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+func _KVStore_Fetch_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(FetchRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(KVServiceServer).Fetch(ctx, in)
+		return srv.(KVStoreServer).Fetch(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: "/kv.KVService/Fetch",
+		FullMethod: "/kv.KVStore/Fetch",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(KVServiceServer).Fetch(ctx, req.(*FetchRequest))
+		return srv.(KVStoreServer).Fetch(ctx, req.(*FetchRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
-func _KVService_Delete_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+func _KVStore_Delete_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(DeleteRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(KVServiceServer).Delete(ctx, in)
+		return srv.(KVStoreServer).Delete(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: "/kv.KVService/Delete",
+		FullMethod: "/kv.KVStore/Delete",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(KVServiceServer).Delete(ctx, req.(*DeleteRequest))
+		return srv.(KVStoreServer).Delete(ctx, req.(*DeleteRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
-var _KVService_serviceDesc = grpc.ServiceDesc{
-	ServiceName: "kv.KVService",
-	HandlerType: (*KVServiceServer)(nil),
+var _KVStore_serviceDesc = grpc.ServiceDesc{
+	ServiceName: "kv.KVStore",
+	HandlerType: (*KVStoreServer)(nil),
 	Methods: []grpc.MethodDesc{
 		{
 			MethodName: "Publish",
-			Handler:    _KVService_Publish_Handler,
+			Handler:    _KVStore_Publish_Handler,
 		},
 		{
 			MethodName: "Fetch",
-			Handler:    _KVService_Fetch_Handler,
+			Handler:    _KVStore_Fetch_Handler,
 		},
 		{
 			MethodName: "Delete",
-			Handler:    _KVService_Delete_Handler,
+			Handler:    _KVStore_Delete_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},
+	Metadata: "kv.proto",
+}
+
+// SyncClient is the client API for Sync service.
+//
+// For semantics around ctx use and closing/ending streaming RPCs, please refer to https://godoc.org/google.golang.org/grpc#ClientConn.NewStream.
+type SyncClient interface {
+	Sync(ctx context.Context, opts ...grpc.CallOption) (Sync_SyncClient, error)
+}
+
+type syncClient struct {
+	cc *grpc.ClientConn
+}
+
+func NewSyncClient(cc *grpc.ClientConn) SyncClient {
+	return &syncClient{cc}
+}
+
+func (c *syncClient) Sync(ctx context.Context, opts ...grpc.CallOption) (Sync_SyncClient, error) {
+	stream, err := c.cc.NewStream(ctx, &_Sync_serviceDesc.Streams[0], "/kv.Sync/Sync", opts...)
+	if err != nil {
+		return nil, err
+	}
+	x := &syncSyncClient{stream}
+	return x, nil
+}
+
+type Sync_SyncClient interface {
+	Send(*SyncRequest) error
+	Recv() (*SyncResponse, error)
+	grpc.ClientStream
+}
+
+type syncSyncClient struct {
+	grpc.ClientStream
+}
+
+func (x *syncSyncClient) Send(m *SyncRequest) error {
+	return x.ClientStream.SendMsg(m)
+}
+
+func (x *syncSyncClient) Recv() (*SyncResponse, error) {
+	m := new(SyncResponse)
+	if err := x.ClientStream.RecvMsg(m); err != nil {
+		return nil, err
+	}
+	return m, nil
+}
+
+// SyncServer is the server API for Sync service.
+type SyncServer interface {
+	Sync(Sync_SyncServer) error
+}
+
+// UnimplementedSyncServer can be embedded to have forward compatible implementations.
+type UnimplementedSyncServer struct {
+}
+
+func (*UnimplementedSyncServer) Sync(srv Sync_SyncServer) error {
+	return status.Errorf(codes.Unimplemented, "method Sync not implemented")
+}
+
+func RegisterSyncServer(s *grpc.Server, srv SyncServer) {
+	s.RegisterService(&_Sync_serviceDesc, srv)
+}
+
+func _Sync_Sync_Handler(srv interface{}, stream grpc.ServerStream) error {
+	return srv.(SyncServer).Sync(&syncSyncServer{stream})
+}
+
+type Sync_SyncServer interface {
+	Send(*SyncResponse) error
+	Recv() (*SyncRequest, error)
+	grpc.ServerStream
+}
+
+type syncSyncServer struct {
+	grpc.ServerStream
+}
+
+func (x *syncSyncServer) Send(m *SyncResponse) error {
+	return x.ServerStream.SendMsg(m)
+}
+
+func (x *syncSyncServer) Recv() (*SyncRequest, error) {
+	m := new(SyncRequest)
+	if err := x.ServerStream.RecvMsg(m); err != nil {
+		return nil, err
+	}
+	return m, nil
+}
+
+var _Sync_serviceDesc = grpc.ServiceDesc{
+	ServiceName: "kv.Sync",
+	HandlerType: (*SyncServer)(nil),
+	Methods:     []grpc.MethodDesc{},
+	Streams: []grpc.StreamDesc{
+		{
+			StreamName:    "Sync",
+			Handler:       _Sync_Sync_Handler,
+			ServerStreams: true,
+			ClientStreams: true,
+		},
+	},
 	Metadata: "kv.proto",
 }

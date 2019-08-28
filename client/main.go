@@ -52,10 +52,10 @@ func main() {
 	}
 
 	// delete an existing record
-	if err := client.Delete("animals"); err != nil {
+	/*if err := client.Delete("animals"); err != nil {
 		log.Printf("failed to delete: %s", err)
 		return
-	}
+	}*/
 
 	// retrieve an existing record
 	var animals []string
@@ -67,10 +67,10 @@ func main() {
 	log.Printf("fetched animals: %v (created at %d)", animals, ts)
 }
 
-// KVClient is a gRPC KV client.
+// KVClient is a gRPC KV client which satisfies the KVServiceClient interface.
 type KVClient struct {
 	*grpc.ClientConn
-	ServiceClient pb.KVServiceClient
+	ServiceClient pb.KVStoreClient
 }
 
 // NewKVClient creates a new gRPC KV client.
@@ -82,7 +82,7 @@ func NewKVClient(port int) (*KVClient, error) {
 
 	return &KVClient{
 		ClientConn:    conn,
-		ServiceClient: pb.NewKVServiceClient(conn),
+		ServiceClient: pb.NewKVStoreClient(conn),
 	}, nil
 }
 

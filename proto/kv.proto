@@ -2,12 +2,11 @@ syntax = "proto3";
 
 package kv;
 
-service KVService {
+service KVStore {
     rpc Publish (PublishRequest) returns (Empty) {}
     rpc Fetch (FetchRequest) returns (FetchResponse) {}
     rpc Delete (DeleteRequest) returns (Empty) {}
-    //    rpc Subscribe (SubscribeRequest) returns (stream FetchResponse) {}
-    //    rpc Sync (stream SyncMessage) returns (stream SyncMessage) {}
+    //rpc Subscribe (SubscribeRequest) returns (stream FetchResponse) {}
 }
 
 message Empty {}
@@ -30,10 +29,28 @@ message DeleteRequest {
     string key = 1;
 }
 
-/*message SubscribeRequest {
+//message SubscribeRequest {}
 
-}*/
-
-message SyncMessage {
-
+service Sync {
+    rpc Sync (stream SyncRequest) returns (stream SyncResponse) {}
 }
+
+message SyncRequest {
+    string key = 1;
+    string value = 2;
+    int64 timestamp = 3;
+
+    enum OperationType {
+        UPDATE = 0;
+        DELETE = 1;
+    }
+
+    enum SyncType {
+        SYN = 0;
+        ACK = 1;
+    }
+
+    uint32 coverage = 4;
+}
+
+message SyncResponse {}

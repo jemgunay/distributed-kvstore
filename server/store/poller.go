@@ -22,29 +22,21 @@ type deleteReq struct {
 	respCh chan error
 }
 
-var (
-	// RequestChanBufSize is the size of each of the store poller request channel buffers.
-	RequestChanBufSize = 1 << 10 // 1024
-
-	getReqChan    chan getReq
-	putReqChan    chan putReq
-	deleteReqChan chan deleteReq
-)
-
-func StartPoller() {
-	getReqChan = make(chan getReq, RequestChanBufSize)
-	putReqChan = make(chan putReq, RequestChanBufSize)
-	deleteReqChan = make(chan deleteReq, RequestChanBufSize)
+// StartPoller starts polling for operations to apply to the store in order to serialise access to the store's map.
+func (s *Store) StartPoller() {
+	s.getReqChan = make(chan getReq, s.RequestChanBufSize)
+	s.putReqChan = make(chan putReq, s.RequestChanBufSize)
+	s.deleteReqChan = make(chan deleteReq, s.RequestChanBufSize)
 
 	go func() {
 		for {
 			select {
-			case req := <-getReqChan:
-				req.respCh <- performGet(req.key)
-			case req := <-putReqChan:
-				req.respCh <- performInsertOperation(req.key, req.value, updateOp)
-			case req := <-deleteReqChan:
-				req.respCh <- performInsertOperation(req.key, nil, deleteOp)
+			case req := <-s.getReqChan:
+				req.respCh <- s.performGet(req.key)
+			case req := <-s.putReqChan:
+				req.respCh <- s.performInsertOperation(req.key, req.value, updateOp)
+			case req := <-s.deleteReqChan:
+				req.respCh <- s.performInsertOperation(req.key, nil, deleteOp)
 			}
 		}
 	}()
