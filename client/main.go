@@ -32,17 +32,20 @@ func main() {
 	defer client.Close()
 
 	// publish some records
-	if err := client.Publish("animals", []string{"dog", "cat", "hippo"}); err != nil {
-		log.Printf("failed to publish: %s", err)
-		return
+	data := []struct {
+		key   string
+		value interface{}
+	}{
+		{"animals", []string{"dog", "cat", "hippo"}},
+		{"misc_data", "this is a chunky piece of random data"},
+		{"animals", []string{"dog", "cat", "hippo", "tiger", "zebra"}},
 	}
-	if err := client.Publish("misc_data", "this is a chunky piece of random data"); err != nil {
-		log.Printf("failed to publish: %s", err)
-		return
-	}
-	if err := client.Publish("animals", []string{"dog", "cat", "hippo", "tiger", "zebra"}); err != nil {
-		log.Printf("failed to publish: %s", err)
-		return
+
+	for _, d := range data {
+		if err := client.Publish(d.key, d.value); err != nil {
+			log.Printf("failed to publish %s: %s", d.key, err)
+			return
+		}
 	}
 
 	// retrieve an existing record
