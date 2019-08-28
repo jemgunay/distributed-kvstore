@@ -24,31 +24,30 @@ func main() {
 
 	// connect to gRPC server
 	log.Printf("connecting to server on port %d", port)
-	conn, err := grpc.Dial(":"+strconv.Itoa(port), grpc.WithInsecure())
+	client, err := NewClient(port)
 	if err != nil {
-		fmt.Printf("failed to connect to server: %s", err)
+		log.Printf("failed to create client: %s", err)
 		return
 	}
-	defer conn.Close()
+	defer client.Close()
 
-	client := pb.NewKVServiceClient(conn)
 	// publish some records
-	if err := publish(client, "animals", []string{"dog", "cat", "hippo"}); err != nil {
+	if err := client.Publish("animals", []string{"dog", "cat", "hippo"}); err != nil {
 		log.Printf("failed to publish: %s", err)
 		return
 	}
-	if err := publish(client, "misc_data", "this is a chunky piece of random data"); err != nil {
+	if err := client.Publish("misc_data", "this is a chunky piece of random data"); err != nil {
 		log.Printf("failed to publish: %s", err)
 		return
 	}
-	if err := publish(client, "animals", []string{"dog", "cat", "hippo", "tiger", "zebra"}); err != nil {
+	if err := client.Publish("animals", []string{"dog", "cat", "hippo", "tiger", "zebra"}); err != nil {
 		log.Printf("failed to publish: %s", err)
 		return
 	}
 
 	// retrieve an existing record
 	var animals []string
-	ts, err := fetch(client, "animals", &animals)
+	ts, err := client.Fetch("animals", &animals)
 	if err != nil {
 		log.Printf("failed to fetch: %s", err)
 		return
@@ -56,7 +55,27 @@ func main() {
 	log.Printf("fetched animals: %v (created at %d)", animals, ts)
 }
 
-func publish(client pb.KVServiceClient, key string, value interface{}) error {
+// KVClient is a gRPC client.
+type KVClient struct {
+	*grpc.ClientConn
+	ServiceClient pb.KVServiceClient
+}
+
+// NewClient creates a new gRPC client.
+func NewClient(port int) (*KVClient, error) {
+	conn, err := grpc.Dial(":"+strconv.Itoa(port), grpc.WithInsecure())
+	if err != nil {
+		return nil, fmt.Errorf("failed to connect to server: %s", err)
+	}
+
+	return &KVClient{
+		ClientConn:    conn,
+		ServiceClient: pb.NewKVServiceClient(conn),
+	}, nil
+}
+
+// Publish performs a publish request over gRPC in order to publish a key/value pair.
+func (c *KVClient) Publish(key string, value interface{}) error {
 	log.Printf("[publish] %s -> %+v", key, value)
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
@@ -65,7 +84,7 @@ func publish(client pb.KVServiceClient, key string, value interface{}) error {
 	buf := &bytes.Buffer{}
 	encoder := gob.NewEncoder(buf)
 	if err := encoder.Encode(value); err != nil {
-		return fmt.Errorf("failed to encode value: %s", err)
+		return fmt.Errorf("failed to gob encode value: %s", err)
 	}
 
 	req := pb.PublishRequest{
@@ -73,14 +92,16 @@ func publish(client pb.KVServiceClient, key string, value interface{}) error {
 		Value: buf.Bytes(),
 	}
 
-	if _, err := client.Publish(ctx, &req); err != nil {
+	// perform publish request
+	if _, err := c.ServiceClient.Publish(ctx, &req); err != nil {
 		return fmt.Errorf("failed to publish: %s", err)
 	}
 
 	return nil
 }
 
-func fetch(client pb.KVServiceClient, key string, data interface{}) (int64, error) {
+// Fetch performs a fetch request over gRPC in order to retrieve the value that corresponds with the specified key.
+func (c *KVClient) Fetch(key string, value interface{}) (int64, error) {
 	log.Printf("[fetch] %s", key)
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
@@ -89,7 +110,8 @@ func fetch(client pb.KVServiceClient, key string, data interface{}) (int64, erro
 		Key: key,
 	}
 
-	resp, err := client.Fetch(ctx, &req)
+	// perform fetch request
+	resp, err := c.ServiceClient.Fetch(ctx, &req)
 	if err != nil {
 		return 0, fmt.Errorf("failed to publish: %s", err)
 	}
@@ -97,8 +119,8 @@ func fetch(client pb.KVServiceClient, key string, data interface{}) (int64, erro
 	// gob decode bytes into specified type
 	buf := bytes.NewReader(resp.Value)
 	decoder := gob.NewDecoder(buf)
-	if err := decoder.Decode(data); err != nil {
-		return 0, fmt.Errorf("failed to decode value: %s", err)
+	if err := decoder.Decode(value); err != nil {
+		return 0, fmt.Errorf("failed to gob decode value: %s", err)
 	}
 
 	return resp.Timestamp, nil

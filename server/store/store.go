@@ -8,13 +8,15 @@ import (
 	"github.com/OneOfOne/xxhash"
 )
 
-type Record struct {
+// represents a record in the store
+type record struct {
 	key        string
 	data       []byte
-	operations []*Operation
+	operations []*operation
 }
 
-func (r Record) latestOperation() *Operation {
+// returns the latest operation stored in a record
+func (r record) latestOperation() *operation {
 	if len(r.operations) == 0 {
 		return nil
 	}
@@ -28,7 +30,7 @@ const (
 	deleteOp
 )
 
-type Operation struct {
+type operation struct {
 	opType       operationType
 	data         []byte
 	timestamp    int64
@@ -37,12 +39,15 @@ type Operation struct {
 
 var (
 	// map key is hashed key
-	store = map[uint64]*Record{}
+	store = map[uint64]*record{}
 
-	ErrNotFound   = errors.New("hash of key not found in store")
+	// ErrNotFound indicates that the provided key does not exist in the store.
+	ErrNotFound = errors.New("key not found in store")
+	// ErrInvalidKey indicates that an invalid key (likely an empty string) was provided.
 	ErrInvalidKey = errors.New("invalid key provided")
 )
 
+// Get retrieves a record from the store.
 func Get(key string) ([]byte, int64, error) {
 	if key == "" {
 		return nil, 0, ErrInvalidKey
@@ -68,10 +73,12 @@ func Get(key string) ([]byte, int64, error) {
 	return record.data, lastOp.timestamp, nil
 }
 
+// Put either creates a new record or amends the state of an existing record in the store.
 func Put(key string, value []byte) error {
 	return insertOperation(key, value, updateOp)
 }
 
+// Delete performs a store record deletion.
 func Delete(key string) error {
 	return insertOperation(key, nil, deleteOp)
 }
@@ -88,7 +95,7 @@ func insertOperation(key string, value []byte, opType operationType) error {
 	}
 
 	// construct new operation record
-	newOp := &Operation{
+	newOp := &operation{
 		opType:       opType,
 		data:         value,
 		timestamp:    time.Now().UTC().UnixNano(),
@@ -99,8 +106,8 @@ func insertOperation(key string, value []byte, opType operationType) error {
 	r, ok := store[hash]
 	if !ok {
 		// if there is no existing record, create a new one
-		r = &Record{
-			operations: []*Operation{newOp},
+		r = &record{
+			operations: []*operation{newOp},
 		}
 	} else {
 		// if record exists, append new operation order operations by timestamp (if there is more than one operation)
@@ -120,6 +127,7 @@ func insertOperation(key string, value []byte, opType operationType) error {
 	return nil
 }
 
+// very fast non-cryptographic hashing algorithm used for hashing keys
 func hashKey(key string) (uint64, error) {
 	h := xxhash.New64()
 	if _, err := h.WriteString(key); err != nil {
