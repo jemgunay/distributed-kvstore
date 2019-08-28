@@ -23,6 +23,7 @@ type deleteReq struct {
 }
 
 // StartPoller starts polling for operations to apply to the store in order to serialise access to the store's map.
+// TODO: done channel for graceful shutdown
 func (s *Store) StartPoller() {
 	s.getReqChan = make(chan getReq, s.RequestChanBufSize)
 	s.putReqChan = make(chan putReq, s.RequestChanBufSize)
@@ -32,7 +33,7 @@ func (s *Store) StartPoller() {
 		for {
 			select {
 			case req := <-s.getReqChan:
-				req.respCh <- s.performGet(req.key)
+				req.respCh <- s.performGetOperation(req.key)
 			case req := <-s.putReqChan:
 				req.respCh <- s.performInsertOperation(req.key, req.value, updateOp)
 			case req := <-s.deleteReqChan:

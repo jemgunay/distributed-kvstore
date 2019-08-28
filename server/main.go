@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"flag"
 	"fmt"
 	"log"
@@ -22,10 +23,12 @@ func main() {
 	flag.IntVar(&port, "port", port, "the target server's port")
 	flag.Parse()
 
-	// create a server
-	server := NewKVSyncServer()
+	// create a store and server
+	kvStore := store.NewStore()
+	kvStore.StartPoller()
+	server := NewKVSyncServer(kvStore)
 
-	// start serving over gRPC
+	// start serving
 	log.Printf("server listening on port %d", port)
 	if err := server.Start(port); err != nil {
 		fmt.Printf("server has shut down unexpectedly: %s", err)
@@ -41,21 +44,22 @@ type KVSyncServer struct {
 }
 
 // NewKVSyncServer creates a new gRPC KV synchronised server.
-func NewKVSyncServer() *KVSyncServer {
+func NewKVSyncServer(store *store.Store) *KVSyncServer {
 	return &KVSyncServer{
 		grpcServer: grpc.NewServer(),
-		store:      store.NewStore(),
+		store:      store,
 	}
 }
 
 // Start registers the gRPC handlers and starts the KV sync server.
 func (s *KVSyncServer) Start(port int) error {
-	// start the store's operation poller
-	s.store.StartPoller()
+	if s.store == nil {
+		return errors.New("server store is uninitialised")
+	}
 
 	// register gRPC handlers
 	pb.RegisterKVStoreServer(s.grpcServer, s)
-	//pb.RegisterSyncServer(s.grpcServer, s)
+	pb.RegisterSyncServer(s.grpcServer, s)
 
 	// bind to specified port over TCP
 	l, err := net.Listen("tcp", ":"+strconv.Itoa(port))
@@ -108,4 +112,9 @@ func (s *KVSyncServer) Delete(ctx context.Context, r *pb.DeleteRequest) (*pb.Emp
 	// pull record from store
 	err := s.store.Delete(r.GetKey())
 	return &pb.Empty{}, err
+}
+
+// Sync is responsible for transmitting sync requests to the other distributed store nodes.
+func (s *KVSyncServer) Sync(stream pb.Sync_SyncServer) error {
+	return nil
 }

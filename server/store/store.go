@@ -39,7 +39,7 @@ type operation struct {
 	nodeCoverage uint8
 }
 
-// Store is a KV store.
+// Store is a operation based KV store to facilitate a distributed server implementation.
 type Store struct {
 	// a map of key/value pairs where the key is the hashed key and the value is the data record
 	store map[uint64]*record
@@ -86,7 +86,7 @@ func (s *Store) Get(key string) ([]byte, int64, error) {
 }
 
 // called by the poller to serialise get request operations on the store map
-func (s *Store) performGet(key string) getResp {
+func (s *Store) performGetOperation(key string) getResp {
 	if key == "" {
 		return getResp{err: ErrInvalidKey}
 	}
