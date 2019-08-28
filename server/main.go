@@ -41,6 +41,7 @@ func main() {
 
 type server struct{}
 
+// Publish processes publish requests from a client and stores the provided key/value pair.
 func (s *server) Publish(ctx context.Context, r *pb.PublishRequest) (*pb.Empty, error) {
 	if p, ok := peer.FromContext(ctx); ok {
 		log.Printf("[%s -> publish] %s", p.Addr, r.Key)
@@ -51,6 +52,7 @@ func (s *server) Publish(ctx context.Context, r *pb.PublishRequest) (*pb.Empty, 
 	return &pb.Empty{}, err
 }
 
+// Fetch processes fetch requests from a client returns the value and timestamp associated with the specified key.
 func (s *server) Fetch(ctx context.Context, r *pb.FetchRequest) (*pb.FetchResponse, error) {
 	if p, ok := peer.FromContext(ctx); ok {
 		log.Printf("[%s -> fetch] %s", p.Addr, r.Key)

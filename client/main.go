@@ -24,7 +24,7 @@ func main() {
 
 	// connect to gRPC server
 	log.Printf("connecting to server on port %d", port)
-	client, err := NewClient(port)
+	client, err := NewKVClient(port)
 	if err != nil {
 		log.Printf("failed to create client: %s", err)
 		return
@@ -58,14 +58,14 @@ func main() {
 	log.Printf("fetched animals: %v (created at %d)", animals, ts)
 }
 
-// KVClient is a gRPC client.
+// KVClient is a gRPC KV client.
 type KVClient struct {
 	*grpc.ClientConn
 	ServiceClient pb.KVServiceClient
 }
 
-// NewClient creates a new gRPC client.
-func NewClient(port int) (*KVClient, error) {
+// NewKVClient creates a new gRPC KV client.
+func NewKVClient(port int) (*KVClient, error) {
 	conn, err := grpc.Dial(":"+strconv.Itoa(port), grpc.WithInsecure())
 	if err != nil {
 		return nil, fmt.Errorf("failed to connect to server: %s", err)
