@@ -5,6 +5,7 @@ package kv;
 service KVService {
     rpc Publish (PublishRequest) returns (Empty) {}
     rpc Fetch (FetchRequest) returns (FetchResponse) {}
+    rpc Delete (DeleteRequest) returns (FetchResponse) {}
     //    rpc Subscribe (SubscribeRequest) returns (stream FetchResponse) {}
     //    rpc Sync (stream SyncMessage) returns (stream SyncMessage) {}
 }

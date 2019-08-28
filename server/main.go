@@ -22,6 +22,8 @@ func main() {
 	flag.IntVar(&port, "port", port, "the target server's port")
 	flag.Parse()
 
+	store.StartPoller()
+
 	// create gRPC server
 	grpcServer := grpc.NewServer()
 	pb.RegisterKVServiceServer(grpcServer, &server{})

@@ -23,6 +23,7 @@ func (r record) latestOperation() *operation {
 	return r.operations[len(r.operations)-1]
 }
 
+// operations types
 type operationType uint
 
 const (
@@ -30,6 +31,8 @@ const (
 	deleteOp
 )
 
+// operation represents a request to update or delete a record - these are used to maintain the order of incoming
+// operations to prevent data loss resulting from the processing of incorrectly ordered requests
 type operation struct {
 	opType       operationType
 	data         []byte
@@ -38,52 +41,92 @@ type operation struct {
 }
 
 var (
-	// map key is hashed key
+	// a map of key/value pairs where the key is the hashed key and the value is the data record
 	store = map[uint64]*record{}
 
 	// ErrNotFound indicates that the provided key does not exist in the store.
 	ErrNotFound = errors.New("key not found in store")
 	// ErrInvalidKey indicates that an invalid key (likely an empty string) was provided.
 	ErrInvalidKey = errors.New("invalid key provided")
+	// ErrPollerBufferFull indicates that the poller channel buffer is full and cannot consume new requests.
+	ErrPollerBufferFull = errors.New("request failed as poller channel buffer is full")
 )
 
 // Get retrieves a record from the store.
 func Get(key string) ([]byte, int64, error) {
+	req := getReq{
+		key:    key,
+		respCh: make(chan getResp),
+	}
+	// if buffer is full, fail request with error
+	select {
+	case getReqChan <- req:
+		resp := <-req.respCh
+		return resp.data, resp.timestamp, resp.err
+	default:
+		return nil, 0, ErrPollerBufferFull
+	}
+}
+
+// called by the poller to serialise get request operations on the store map
+func performGet(key string) getResp {
 	if key == "" {
-		return nil, 0, ErrInvalidKey
+		return getResp{err: ErrInvalidKey}
 	}
 
 	// get hash of key
 	hash, err := hashKey(key)
 	if err != nil {
-		return nil, 0, err
+		return getResp{err: err}
 	}
 
 	// retrieve value from map
 	record, ok := store[hash]
 	if !ok {
-		return nil, 0, ErrNotFound
+		return getResp{err: ErrNotFound}
 	}
 	// determine if record was deleted on last operation
 	lastOp := record.latestOperation()
 	if lastOp.opType == deleteOp {
-		return nil, 0, ErrNotFound
+		return getResp{err: ErrNotFound}
 	}
 
-	return record.data, lastOp.timestamp, nil
+	return getResp{data: record.data, timestamp: lastOp.timestamp}
 }
 
 // Put either creates a new record or amends the state of an existing record in the store.
 func Put(key string, value []byte) error {
-	return insertOperation(key, value, updateOp)
+	req := putReq{
+		key:    key,
+		value:  value,
+		respCh: make(chan error),
+	}
+	// if buffer is full, fail request with error
+	select {
+	case putReqChan <- req:
+		return <-req.respCh
+	default:
+		return ErrPollerBufferFull
+	}
 }
 
 // Delete performs a store record deletion.
 func Delete(key string) error {
-	return insertOperation(key, nil, deleteOp)
+	req := deleteReq{
+		key:    key,
+		respCh: make(chan error),
+	}
+	// if buffer is full, fail request with error
+	select {
+	case deleteReqChan <- req:
+		return <-req.respCh
+	default:
+		return ErrPollerBufferFull
+	}
 }
 
-func insertOperation(key string, value []byte, opType operationType) error {
+// called by the poller to serialise update and delete request operations on the store map
+func performInsertOperation(key string, value []byte, opType operationType) error {
 	if key == "" {
 		return ErrInvalidKey
 	}
@@ -127,7 +170,7 @@ func insertOperation(key string, value []byte, opType operationType) error {
 	return nil
 }
 
-// very fast non-cryptographic hashing algorithm used for hashing keys
+// hash keys with very fast non-cryptographic hashing algorithm
 func hashKey(key string) (uint64, error) {
 	h := xxhash.New64()
 	if _, err := h.WriteString(key); err != nil {
