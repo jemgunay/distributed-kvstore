@@ -18,7 +18,6 @@ type KVStorer interface {
 // represents a record in the store
 type record struct {
 	key        string
-	data       []byte
 	operations []*operation
 }
 
@@ -40,10 +39,12 @@ const (
 // operation represents a request to update or delete a record - these are used to maintain the order of incoming
 // operations to prevent data loss resulting from the processing of incorrectly ordered requests
 type operation struct {
-	opType       operationType
-	data         []byte
-	timestamp    int64
-	nodeCoverage uint8
+	opType    operationType
+	data      []byte
+	timestamp int64
+	// used to determine which nodes this operation has synchronised across
+	nodeSYNCoverage uint64
+	nodeACKCoverage uint64
 }
 
 // Store is a operation based KV store to facilitate a distributed server implementation.
@@ -109,13 +110,14 @@ func (s *Store) performGetOperation(key string) getResp {
 	if !ok {
 		return getResp{err: ErrNotFound}
 	}
+
 	// determine if record was deleted on last operation
 	lastOp := record.latestOperation()
 	if lastOp.opType == deleteOp {
 		return getResp{err: ErrNotFound}
 	}
 
-	return getResp{data: record.data, timestamp: lastOp.timestamp}
+	return getResp{data: lastOp.data, timestamp: lastOp.timestamp}
 }
 
 // Put either creates a new record or amends the state of an existing record in the store.
@@ -163,10 +165,11 @@ func (s *Store) performInsertOperation(key string, value []byte, opType operatio
 
 	// construct new operation record
 	newOp := &operation{
-		opType:       opType,
-		data:         value,
-		timestamp:    time.Now().UTC().UnixNano(),
-		nodeCoverage: 1,
+		opType:          opType,
+		data:            value,
+		timestamp:       time.Now().UTC().UnixNano(),
+		nodeSYNCoverage: 1,
+		nodeACKCoverage: 1,
 	}
 
 	// attempt to retrieve existing value from map
@@ -186,15 +189,12 @@ func (s *Store) performInsertOperation(key string, value []byte, opType operatio
 		})
 	}
 
-	// update record's data to reflect most recent operation
 	r.key = key
-	r.data = r.latestOperation().data
-
 	s.store[hash] = r
 	return nil
 }
 
-// hash keys with very fast non-cryptographic hashing algorithm
+// hashes the specified key with very fast non-cryptographic hashing algorithm
 func hashKey(key string) (uint64, error) {
 	h := xxhash.New64()
 	if _, err := h.WriteString(key); err != nil {

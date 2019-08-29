@@ -27,7 +27,7 @@ func main() {
 
 	// connect to gRPC server
 	log.Printf("connecting to server on port %d", port)
-	client, err := NewKVClient(port)
+	client, err := NewKVClient(":" + strconv.Itoa(port))
 	if err != nil {
 		log.Printf("failed to create client: %s", err)
 		return
@@ -74,8 +74,8 @@ type KVClient struct {
 }
 
 // NewKVClient creates a new gRPC KV client.
-func NewKVClient(port int) (*KVClient, error) {
-	conn, err := grpc.Dial(":"+strconv.Itoa(port), grpc.WithInsecure())
+func NewKVClient(address string) (*KVClient, error) {
+	conn, err := grpc.Dial(address, grpc.WithInsecure())
 	if err != nil {
 		return nil, fmt.Errorf("failed to connect to server: %s", err)
 	}

@@ -3,19 +3,21 @@ syntax = "proto3";
 package kv;
 
 service KVStore {
-    rpc Publish (PublishRequest) returns (Empty) {}
-    rpc Fetch (FetchRequest) returns (FetchResponse) {}
-    rpc Delete (DeleteRequest) returns (Empty) {}
+    rpc Publish (PublishRequest) returns (Empty);
+    rpc Fetch (FetchRequest) returns (FetchResponse);
+    rpc Delete (DeleteRequest) returns (Empty);
     //rpc Subscribe (SubscribeRequest) returns (stream FetchResponse) {}
 }
 
 message Empty {}
 
+// Publish
 message PublishRequest {
     string key = 1;
     bytes value = 2;
 }
 
+// Fetch
 message FetchRequest {
     string key = 1;
 }
@@ -25,14 +27,21 @@ message FetchResponse {
     int64 timestamp = 2;
 }
 
+// Delete
 message DeleteRequest {
     string key = 1;
 }
 
 //message SubscribeRequest {}
 
+// Sync
 service Sync {
-    rpc Sync (stream SyncRequest) returns (stream SyncResponse) {}
+    rpc Identify (IdentifyMessage) returns (IdentifyMessage);
+    rpc Sync (stream SyncRequest) returns (stream SyncResponse);
+}
+
+message IdentifyMessage {
+    int64 timestamp = 1;
 }
 
 message SyncRequest {
@@ -50,7 +59,7 @@ message SyncRequest {
         ACK = 1;
     }
 
-    uint32 coverage = 4;
+    uint64 coverage = 4;
 }
 
 message SyncResponse {}
