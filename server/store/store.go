@@ -8,6 +8,13 @@ import (
 	"github.com/OneOfOne/xxhash"
 )
 
+// KVStorer is the interface that wraps the store methods required by a KV store.
+type KVStorer interface {
+	Get(key string) ([]byte, int64, error)
+	Put(key string, value []byte) error
+	Delete(key string) error
+}
+
 // represents a record in the store
 type record struct {
 	key        string

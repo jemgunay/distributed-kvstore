@@ -37,7 +37,7 @@ var (
 func main() {
 	// parse flags
 	flag.IntVar(&port, "port", port, "the port this server should server from")
-	flag.Var(&nodesAddresses, "node_address", "list of addresses that this node should attempt to synchronise with")
+	flag.Var(&nodesAddresses, "node_address", "list of node addresses that this node should attempt to synchronise with")
 	flag.Parse()
 
 	// create a store and server
@@ -57,11 +57,11 @@ func main() {
 // KVSyncServer is a gRPC KV synchronised server which satisfies both the KVServiceServer and SyncServiceServer interfaces.
 type KVSyncServer struct {
 	grpcServer *grpc.Server
-	store      *store.Store
+	store      store.KVStorer
 }
 
 // NewKVSyncServer creates a new gRPC KV synchronised server.
-func NewKVSyncServer(store *store.Store) *KVSyncServer {
+func NewKVSyncServer(store store.KVStorer) *KVSyncServer {
 	return &KVSyncServer{
 		grpcServer: grpc.NewServer(),
 		store:      store,
