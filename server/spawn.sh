@@ -6,13 +6,16 @@ if [[ ${NUM_SERVICES} == '' ]]; then
     NUM_SERVICES=4
 fi
 
+
+# kill existing services
+for i in $(seq 1 ${NUM_SERVICES}); do
+    fuser -k 700${i}/tcp
+done
+
 # build service
 go build
 
 for i in $(seq 1 ${NUM_SERVICES}); do
-    # kill existing services
-    fuser -k 700${i}/tcp
-
     # build node_address flags
     cmd="./server -port=700${i}"
     for j in $(seq 1 ${NUM_SERVICES}); do

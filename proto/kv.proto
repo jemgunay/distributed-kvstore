@@ -41,7 +41,7 @@ service Sync {
 }
 
 message IdentifyMessage {
-    int64 timestamp = 1;
+    int64 start_time = 1;
 }
 
 message SyncRequest {

@@ -61,6 +61,7 @@ func main() {
 type Node struct {
 	address   string
 	startTime int64
+	id        uint32
 
 	*grpc.ClientConn
 	Client pb.SyncClient
@@ -71,9 +72,10 @@ type Node struct {
 type KVSyncServer struct {
 	grpcServer *grpc.Server
 	store      store.KVStorer
-	nodes      []*Node
+	nodes      map[uint32]*Node
 
 	startTime          int64
+	id                 uint32
 	serverShutdownChan chan error
 }
 
@@ -115,9 +117,10 @@ func (s *KVSyncServer) Start(address string, nodeAddresses []string) error {
 		return err
 	}
 
-	for _, v := range s.nodes {
-		log.Printf("[%s] \"%s\" @ %d", address, v.address, v.startTime)
+	for id, v := range s.nodes {
+		log.Printf("[node %d on %s] node %d on \"%s\" started at %d", s.id, address, id, v.address, v.startTime)
 	}
+	log.Println()
 
 	s.startPoller()
 
@@ -125,8 +128,11 @@ func (s *KVSyncServer) Start(address string, nodeAddresses []string) error {
 }
 
 func (s *KVSyncServer) identifyNodes(nodeAddresses []string) error {
+	// create temporary slice of nodes, including self, in order to derive node IDs from order of startup
+	discoveredNodes := make([]*Node, 0, len(nodeAddresses)+1)
 	eg := errgroup.Group{}
 
+	// TODO: ping until service is up (with timeout), then perform identification
 	time.Sleep(time.Second * 2)
 
 	for _, addr := range nodeAddresses {
@@ -144,20 +150,20 @@ func (s *KVSyncServer) identifyNodes(nodeAddresses []string) error {
 			// fetch timestamp from node so that IDs can be determined from startup order
 			ctx, cancel := context.WithTimeout(context.Background(), clientTimeout)
 			defer cancel()
-			resp, err := client.Identify(ctx, &pb.IdentifyMessage{Timestamp: s.startTime})
+			resp, err := client.Identify(ctx, &pb.IdentifyMessage{StartTime: s.startTime})
 			if err != nil {
-				return fmt.Errorf("failed to identify: %s", err)
+				return fmt.Errorf("failed to identify node: %s", err)
 			}
 
 			// create new node
 			newNode := &Node{
 				address:   addr,
-				startTime: resp.Timestamp,
+				startTime: resp.StartTime,
 
 				ClientConn: conn,
 				Client:     client,
 			}
-			s.nodes = append(s.nodes, newNode)
+			discoveredNodes = append(discoveredNodes, newNode)
 
 			return nil
 		})
@@ -167,10 +173,25 @@ func (s *KVSyncServer) identifyNodes(nodeAddresses []string) error {
 		return fmt.Errorf("failed to identify all nodes: %s", err)
 	}
 
+	// add in self node in order to determine node IDs
+	discoveredNodes = append(discoveredNodes, &Node{startTime: s.startTime})
+
 	// sort by timestamp
-	sort.Slice(s.nodes, func(i, j int) bool {
-		return s.nodes[i].startTime < s.nodes[j].startTime
+	sort.Slice(discoveredNodes, func(i, j int) bool {
+		return discoveredNodes[i].startTime < discoveredNodes[j].startTime
 	})
+
+	// use index in ordered slice as the node ID - each node will derive the same IDs from this process independently
+	s.nodes = make(map[uint32]*Node, len(discoveredNodes)-1)
+	for id, n := range discoveredNodes {
+		if n.startTime == s.startTime {
+			// we don't want to add self node to node store, but store its ID
+			s.id = uint32(id)
+			continue
+		}
+		n.id = uint32(id)
+		s.nodes[n.id] = n
+	}
 
 	return nil
 }
@@ -182,7 +203,7 @@ func (s *KVSyncServer) startPoller() {
 }
 
 // Shutdown gracefully shuts down the gRPC server.
-func (s *KVSyncServer) Shutdown(port int) {
+func (s *KVSyncServer) Shutdown() {
 	s.grpcServer.GracefulStop()
 }
 
@@ -224,12 +245,16 @@ func (s *KVSyncServer) Delete(ctx context.Context, r *pb.DeleteRequest) (*pb.Emp
 	return &pb.Empty{}, err
 }
 
+// Identify processes identify requests used to initially ID a node on startup based on the startup timestamps of all
+// nodes.
 func (s *KVSyncServer) Identify(ctx context.Context, r *pb.IdentifyMessage) (*pb.IdentifyMessage, error) {
 	if p, ok := peer.FromContext(ctx); ok {
 		log.Printf("[%s -> identify]", p.Addr)
 	}
+	// TODO: consume the r.StartTime here to create a node and reduce need to ping the requesting server again to
+	// exponentially reduce number of pings required in identification stage
 
-	return &pb.IdentifyMessage{Timestamp: s.startTime}, nil
+	return &pb.IdentifyMessage{StartTime: s.startTime}, nil
 }
 
 // Sync is responsible for transmitting sync requests to the other distributed store nodes.
