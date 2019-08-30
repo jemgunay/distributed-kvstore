@@ -6,6 +6,8 @@ import (
 	"time"
 
 	"github.com/OneOfOne/xxhash"
+
+	pb "github.com/jemgunay/distributed-kvstore/proto"
 )
 
 // KVStorer is the interface that wraps the store methods required by a KV store.
@@ -29,17 +31,10 @@ func (r record) latestOperation() *operation {
 	return r.operations[len(r.operations)-1]
 }
 
-type operationType uint
-
-const (
-	updateOp operationType = iota
-	deleteOp
-)
-
 // operation represents a request to update or delete a record - these are used to maintain the order of incoming
 // operations to prevent data loss resulting from the processing of incorrectly ordered requests
 type operation struct {
-	opType    operationType
+	opType    pb.OperationType
 	data      []byte
 	timestamp int64
 	// used to determine which nodes this operation has synchronised across
@@ -58,13 +53,16 @@ type Store struct {
 	getReqChan    chan getReq
 	putReqChan    chan putReq
 	deleteReqChan chan deleteReq
+
+	syncRequestFeedChan chan *pb.SyncRequest
 }
 
 // NewStore initialises and returns a new KV store.
 func NewStore() *Store {
 	return &Store{
-		store:              map[uint64]*record{},
-		RequestChanBufSize: 1 << 10, // 1024
+		store:               map[uint64]*record{},
+		RequestChanBufSize:  1 << 10, // 1024
+		syncRequestFeedChan: make(chan *pb.SyncRequest, 1<<10),
 	}
 }
 
@@ -113,7 +111,7 @@ func (s *Store) performGetOperation(key string) getResp {
 
 	// determine if record was deleted on last operation
 	lastOp := record.latestOperation()
-	if lastOp.opType == deleteOp {
+	if lastOp.opType == pb.OperationType_DELETE {
 		return getResp{err: ErrNotFound}
 	}
 
@@ -121,10 +119,11 @@ func (s *Store) performGetOperation(key string) getResp {
 }
 
 // Put either creates a new record or amends the state of an existing record in the store.
-func (s *Store) Put(key string, value []byte) error {
+func (s *Store) Put(key string, value []byte, timestamp int64) error {
 	req := putReq{
 		key:    key,
 		value:  value,
+		timestamp: timestamp,
 		respCh: make(chan error),
 	}
 	// if buffer is full, fail request with error
@@ -137,9 +136,10 @@ func (s *Store) Put(key string, value []byte) error {
 }
 
 // Delete performs a store record deletion.
-func (s *Store) Delete(key string) error {
+func (s *Store) Delete(key string, timestamp int64) error {
 	req := deleteReq{
 		key:    key,
+		timestamp: timestamp,
 		respCh: make(chan error),
 	}
 	// if buffer is full, fail request with error
@@ -152,7 +152,7 @@ func (s *Store) Delete(key string) error {
 }
 
 // called by the poller to serialise update and delete request operations on the store map
-func (s *Store) performInsertOperation(key string, value []byte, opType operationType) error {
+func (s *Store) performInsertOperation(key string, value []byte, opType pb.OperationType, timestamp int64) error {
 	if key == "" {
 		return ErrInvalidKey
 	}
@@ -191,7 +191,26 @@ func (s *Store) performInsertOperation(key string, value []byte, opType operatio
 
 	r.key = key
 	s.store[hash] = r
+
+	// sync with other nodes
+	s.syncRequestFeedChan <- &pb.SyncRequest{
+		Key:       key,
+		Value:     value,
+		Timestamp: newOp.timestamp,
+
+		OperationType: opType,
+		SyncType:      pb.SyncType_SYN,
+	}
+
 	return nil
+}
+
+func (s *Store) SyncOut() *pb.SyncRequest {
+	return <-s.syncRequestFeedChan
+}
+
+func (s *Store) SyncIn(req *pb.SyncRequest) error {
+	if req.OperationType == pb.
 }
 
 // hashes the specified key with very fast non-cryptographic hashing algorithm

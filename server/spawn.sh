@@ -6,7 +6,6 @@ if [[ ${NUM_SERVICES} == '' ]]; then
     NUM_SERVICES=4
 fi
 
-
 # kill existing services
 for i in $(seq 1 ${NUM_SERVICES}); do
     port_num=$((7000 + ${i}))
@@ -21,7 +20,7 @@ for i in $(seq 1 ${NUM_SERVICES}); do
     port_num=$((7000 + ${i}))
     cmd="./server -port=${port_num}"
     for j in $(seq 1 ${NUM_SERVICES}); do
-        if [[ "${j}" == "${i}" ]]; then
+        if [[ ${j} == ${i} ]]; then
             continue
         fi
 

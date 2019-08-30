@@ -44,22 +44,24 @@ message IdentifyMessage {
     int64 start_time = 1;
 }
 
+enum OperationType {
+    UPDATE = 0;
+    DELETE = 1;
+}
+enum SyncType {
+    SYN = 0;
+    ACK = 1;
+}
+
 message SyncRequest {
     string key = 1;
-    string value = 2;
+    bytes value = 2;
     int64 timestamp = 3;
 
-    enum OperationType {
-        UPDATE = 0;
-        DELETE = 1;
-    }
+    OperationType operation_type = 4;
+    SyncType sync_type = 5;
 
-    enum SyncType {
-        SYN = 0;
-        ACK = 1;
-    }
-
-    uint64 coverage = 4;
+    uint64 coverage = 6;
 }
 
 message SyncResponse {}
