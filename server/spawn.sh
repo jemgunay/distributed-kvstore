@@ -9,7 +9,8 @@ fi
 
 # kill existing services
 for i in $(seq 1 ${NUM_SERVICES}); do
-    fuser -k 700${i}/tcp
+    port_num=$((7000 + ${i}))
+    fuser -k ${port_num}/tcp
 done
 
 # build service
@@ -17,16 +18,19 @@ go build
 
 for i in $(seq 1 ${NUM_SERVICES}); do
     # build node_address flags
-    cmd="./server -port=700${i}"
+    port_num=$((7000 + ${i}))
+    cmd="./server -port=${port_num}"
     for j in $(seq 1 ${NUM_SERVICES}); do
         if [[ "${j}" == "${i}" ]]; then
             continue
         fi
 
-        cmd="${cmd} -node_address=\":700${j}\""
+        port_num=$((7000 + ${j}))
+        cmd="${cmd} -node_address=\":${port_num}\""
     done
 
     # create service
-    echo ''
     eval ${cmd} &
 done
+
+echo ''
