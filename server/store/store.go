@@ -136,7 +136,7 @@ func (s *Store) Delete(key string, timestamp int64) error {
 	req := insertReq{
 		key:           key,
 		timestamp:     timestamp,
-		operationType: pb.OperationType_UPDATE,
+		operationType: pb.OperationType_DELETE,
 		performSync:   true,
 		respCh:        make(chan error),
 	}
