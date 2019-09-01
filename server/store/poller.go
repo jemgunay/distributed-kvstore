@@ -45,7 +45,7 @@ func (s *Store) StartPoller() {
 			case req := <-s.getReqChan:
 				req.respCh <- s.performGetOperation(req.key)
 			case req := <-s.insertReqChan:
-				req.respCh <- s.performInsertOperation(req.key, req.value, req.timestamp, pb.OperationType_UPDATE, req.performSync)
+				req.respCh <- s.performInsertOperation(req.key, req.value, req.timestamp, req.operationType, req.performSync)
 				/*case req := <-s.deleteReqChan:
 				req.respCh <- s.performInsertOperation(req.key, nil, req.timestamp, pb.OperationType_DELETE, req.performSync)*/
 			}
