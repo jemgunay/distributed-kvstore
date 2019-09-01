@@ -37,7 +37,7 @@ message DeleteRequest {
 // Sync
 service Sync {
     rpc Identify (IdentifyMessage) returns (IdentifyMessage);
-    rpc Sync (stream SyncRequest) returns (stream SyncResponse);
+    rpc Sync (stream SyncMessage) returns (stream SyncMessage);
 }
 
 message IdentifyMessage {
@@ -53,7 +53,7 @@ enum SyncType {
     ACK = 1;
 }
 
-message SyncRequest {
+message SyncMessage {
     string key = 1;
     bytes value = 2;
     int64 timestamp = 3;
@@ -63,5 +63,3 @@ message SyncRequest {
 
     uint64 coverage = 6;
 }
-
-message SyncResponse {}

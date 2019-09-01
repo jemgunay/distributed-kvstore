@@ -1,13 +1,11 @@
-package main
+package client
 
 import (
 	"bytes"
 	"context"
 	"encoding/gob"
-	"flag"
 	"fmt"
 	"log"
-	"strconv"
 	"time"
 
 	"google.golang.org/grpc"
@@ -15,62 +13,11 @@ import (
 	pb "github.com/jemgunay/distributed-kvstore/proto"
 )
 
-var (
-	port          = 6000
-	clientTimeout = time.Second * 10
-)
-
-func main() {
-	// parse flags
-	flag.IntVar(&port, "port", port, "the target server's port")
-	flag.Parse()
-
-	// connect to gRPC server
-	log.Printf("connecting to server on port %d", port)
-	client, err := NewKVClient(":" + strconv.Itoa(port))
-	if err != nil {
-		log.Printf("failed to create client: %s", err)
-		return
-	}
-	defer client.Close()
-
-	// publish some records
-	data := []struct {
-		key   string
-		value interface{}
-	}{
-		{"animals", []string{"dog", "cat", "hippo"}},
-		{"misc_data", "this is a chunky piece of random data"},
-		{"animals", []string{"dog", "cat", "hippo", "tiger", "zebra"}},
-	}
-
-	for _, d := range data {
-		if err := client.Publish(d.key, d.value); err != nil {
-			log.Printf("failed to publish %s: %s", d.key, err)
-			return
-		}
-	}
-
-	// delete an existing record
-	/*if err := client.Delete("animals"); err != nil {
-		log.Printf("failed to delete: %s", err)
-		return
-	}*/
-
-	// retrieve an existing record
-	var animals []string
-	ts, err := client.Fetch("animals", &animals)
-	if err != nil {
-		log.Printf("failed to fetch: %s", err)
-		return
-	}
-	log.Printf("fetched animals: %v (created at %d)", animals, ts)
-}
-
 // KVClient is a gRPC KV client which satisfies the KVServiceClient interface.
 type KVClient struct {
 	*grpc.ClientConn
 	ServiceClient pb.KVStoreClient
+	Timeout       time.Duration
 }
 
 // NewKVClient creates a new gRPC KV client.
@@ -83,13 +30,14 @@ func NewKVClient(address string) (*KVClient, error) {
 	return &KVClient{
 		ClientConn:    conn,
 		ServiceClient: pb.NewKVStoreClient(conn),
+		Timeout:       time.Second * 10,
 	}, nil
 }
 
 // Publish performs a publish request over gRPC in order to publish a key/value pair.
 func (c *KVClient) Publish(key string, value interface{}) error {
 	log.Printf("[publish] %s -> %+v", key, value)
-	ctx, cancel := context.WithTimeout(context.Background(), clientTimeout)
+	ctx, cancel := context.WithTimeout(context.Background(), c.Timeout)
 	defer cancel()
 
 	// gob encode value into bytes
@@ -115,7 +63,7 @@ func (c *KVClient) Publish(key string, value interface{}) error {
 // Fetch performs a fetch request over gRPC in order to retrieve the value that corresponds with the specified key.
 func (c *KVClient) Fetch(key string, value interface{}) (int64, error) {
 	log.Printf("[fetch] %s", key)
-	ctx, cancel := context.WithTimeout(context.Background(), clientTimeout)
+	ctx, cancel := context.WithTimeout(context.Background(), c.Timeout)
 	defer cancel()
 
 	req := pb.FetchRequest{
@@ -141,7 +89,7 @@ func (c *KVClient) Fetch(key string, value interface{}) (int64, error) {
 // Delete performs a delete request over gRPC in order to delete the record that corresponds with the specified key.
 func (c *KVClient) Delete(key string) error {
 	log.Printf("[delete] %s", key)
-	ctx, cancel := context.WithTimeout(context.Background(), clientTimeout)
+	ctx, cancel := context.WithTimeout(context.Background(), c.Timeout)
 	defer cancel()
 
 	req := pb.DeleteRequest{

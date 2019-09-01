@@ -10,13 +10,6 @@ import (
 	pb "github.com/jemgunay/distributed-kvstore/proto"
 )
 
-// KVStorer is the interface that wraps the store methods required by a KV store.
-type KVStorer interface {
-	Get(key string) ([]byte, int64, error)
-	Put(key string, value []byte) error
-	Delete(key string) error
-}
-
 // represents a record in the store
 type record struct {
 	key        string
@@ -51,10 +44,11 @@ type Store struct {
 	RequestChanBufSize int64
 
 	getReqChan    chan getReq
-	putReqChan    chan putReq
-	deleteReqChan chan deleteReq
+	insertReqChan chan insertReq
+	//deleteReqChan chan deleteReq
+	//syncReqChan   chan *pb.SyncMessage
 
-	syncRequestFeedChan chan *pb.SyncRequest
+	syncRequestFeedChan chan *pb.SyncMessage
 }
 
 // NewStore initialises and returns a new KV store.
@@ -62,7 +56,7 @@ func NewStore() *Store {
 	return &Store{
 		store:               map[uint64]*record{},
 		RequestChanBufSize:  1 << 10, // 1024
-		syncRequestFeedChan: make(chan *pb.SyncRequest, 1<<10),
+		syncRequestFeedChan: make(chan *pb.SyncMessage, 1<<10),
 	}
 }
 
@@ -120,15 +114,17 @@ func (s *Store) performGetOperation(key string) getResp {
 
 // Put either creates a new record or amends the state of an existing record in the store.
 func (s *Store) Put(key string, value []byte, timestamp int64) error {
-	req := putReq{
-		key:    key,
-		value:  value,
-		timestamp: timestamp,
-		respCh: make(chan error),
+	req := insertReq{
+		key:           key,
+		value:         value,
+		timestamp:     timestamp,
+		operationType: pb.OperationType_UPDATE,
+		performSync:   true,
+		respCh:        make(chan error),
 	}
 	// if buffer is full, fail request with error
 	select {
-	case s.putReqChan <- req:
+	case s.insertReqChan <- req:
 		return <-req.respCh
 	default:
 		return ErrPollerBufferFull
@@ -137,14 +133,16 @@ func (s *Store) Put(key string, value []byte, timestamp int64) error {
 
 // Delete performs a store record deletion.
 func (s *Store) Delete(key string, timestamp int64) error {
-	req := deleteReq{
-		key:    key,
-		timestamp: timestamp,
-		respCh: make(chan error),
+	req := insertReq{
+		key:           key,
+		timestamp:     timestamp,
+		operationType: pb.OperationType_UPDATE,
+		performSync:   true,
+		respCh:        make(chan error),
 	}
 	// if buffer is full, fail request with error
 	select {
-	case s.deleteReqChan <- req:
+	case s.insertReqChan <- req:
 		return <-req.respCh
 	default:
 		return ErrPollerBufferFull
@@ -152,7 +150,7 @@ func (s *Store) Delete(key string, timestamp int64) error {
 }
 
 // called by the poller to serialise update and delete request operations on the store map
-func (s *Store) performInsertOperation(key string, value []byte, opType pb.OperationType, timestamp int64) error {
+func (s *Store) performInsertOperation(key string, value []byte, timestamp int64, opType pb.OperationType, performSync bool) error {
 	if key == "" {
 		return ErrInvalidKey
 	}
@@ -192,25 +190,40 @@ func (s *Store) performInsertOperation(key string, value []byte, opType pb.Opera
 	r.key = key
 	s.store[hash] = r
 
-	// sync with other nodes
-	s.syncRequestFeedChan <- &pb.SyncRequest{
-		Key:       key,
-		Value:     value,
-		Timestamp: newOp.timestamp,
+	if performSync {
+		s.syncRequestFeedChan <- &pb.SyncMessage{
+			Key:       key,
+			Value:     value,
+			Timestamp: timestamp,
 
-		OperationType: opType,
-		SyncType:      pb.SyncType_SYN,
+			OperationType: pb.OperationType_UPDATE,
+			SyncType:      pb.SyncType_SYN,
+		}
 	}
 
 	return nil
 }
 
-func (s *Store) SyncOut() *pb.SyncRequest {
+func (s *Store) SyncOut() *pb.SyncMessage {
 	return <-s.syncRequestFeedChan
 }
 
-func (s *Store) SyncIn(req *pb.SyncRequest) error {
-	if req.OperationType == pb.
+func (s *Store) SyncIn(syncMsg *pb.SyncMessage) (err error) {
+	req := insertReq{
+		key:           syncMsg.Key,
+		value:         syncMsg.Value,
+		timestamp:     syncMsg.Timestamp,
+		operationType: syncMsg.OperationType,
+		performSync:   false,
+		respCh:        make(chan error),
+	}
+	// if buffer is full, fail request with error
+	select {
+	case s.insertReqChan <- req:
+		return <-req.respCh
+	default:
+		return ErrPollerBufferFull
+	}
 }
 
 // hashes the specified key with very fast non-cryptographic hashing algorithm

@@ -6,14 +6,18 @@ if [[ ${NUM_SERVICES} == '' ]]; then
     NUM_SERVICES=4
 fi
 
+# build service
+go build
+if [[ $? != 0 ]]; then
+    echo "failed to build"
+    exit 1
+fi
+
 # kill existing services
 for i in $(seq 1 ${NUM_SERVICES}); do
     port_num=$((7000 + ${i}))
     fuser -k ${port_num}/tcp
 done
-
-# build service
-go build
 
 for i in $(seq 1 ${NUM_SERVICES}); do
     # build node_address flags
