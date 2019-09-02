@@ -36,6 +36,6 @@ go build && ./client-tool -port=7001
 `fetch animals`<br>
 `delete animals`
 
-## Connect to Nodes in Go
+## Programmatically Connect to Nodes in Go
 
 See `client/cmd/raw-examples/main.go` for examples on how to create a client and perform publish, fetch and delete operations within a Go service consuming the client package.
