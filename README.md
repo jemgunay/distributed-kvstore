@@ -7,20 +7,20 @@ A basic eventually consistent distributed key/value store and gRPC server writte
 Use the `spawn.sh` script to create N number of nodes at once, linking each of them via a list of `node_address` startup flags:
 ```bash
 cd server/cmd/server
-# Create and link 5 nodes (serving on ports 7001-7005).
-./spawn.sh 5
+# Create and link 3 nodes (serving on ports 7001-7005).
+./spawn.sh 3
 ```
 
 Manually creating a single node (not linked to any other nodes):
 ```bash
 cd server/cmd/server
-go build && ./server -port=7000
+go build && ./server -port=7001
 ```
 
-Manually creating nodes (linked to other nodes):
+Manually creating nodes (linked to other nodes) - provide multiple `node_address` flags, one for each node that this new instance should sync with:
 ```bash
 cd server/cmd/server
-go build && ./server -port=7000 -node_address=":7001" -node_address=":7002"
+go build && ./server -port=7001 -node_address=":7002" -node_address=":7003"
 ```
 
 ## Connect to Nodes via a Command-Line Client
@@ -38,4 +38,4 @@ go build && ./client-tool -port=7001
 
 ## Connect to Nodes in Go
 
-See `client/cmd/raw-examples/main.go` for examples on how to create a client and perform publish, fetch and delete operations within your Go code.
+See `client/cmd/raw-examples/main.go` for examples on how to create a client and perform publish, fetch and delete operations within a Go service consuming the client package.
