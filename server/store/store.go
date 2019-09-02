@@ -5,7 +5,6 @@ package store
 import (
 	"errors"
 	"sort"
-	"time"
 
 	"github.com/OneOfOne/xxhash"
 
@@ -170,7 +169,7 @@ func (s *Store) performInsertOperation(req *insertReq) error {
 	newOp := &operation{
 		opType:          req.operationType,
 		data:            req.value,
-		timestamp:       time.Now().UTC().UnixNano(),
+		timestamp:       req.timestamp,
 		nodeSYNCoverage: 1,
 		nodeACKCoverage: 1,
 	}

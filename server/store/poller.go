@@ -34,13 +34,15 @@ func (s *Store) StartPoller() {
 		for {
 			select {
 			case req, ok := <-s.getReqChan:
-				req.respCh <- s.performGetOperation(req.key)
-				if !ok {
+				if ok {
+					req.respCh <- s.performGetOperation(req.key)
+				} else {
 					s.getReqChan = nil
 				}
 			case req, ok := <-s.insertReqChan:
-				req.respCh <- s.performInsertOperation(req)
-				if !ok {
+				if ok {
+					req.respCh <- s.performInsertOperation(req)
+				} else {
 					s.insertReqChan = nil
 				}
 			}
