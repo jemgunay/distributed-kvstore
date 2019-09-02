@@ -1,3 +1,3 @@
 client/cmd/client-tool/client-tool
 client/cmd/raw-examples/raw-examples
-server/server
+server/cmd/server/server

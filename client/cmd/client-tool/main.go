@@ -1,3 +1,5 @@
+// Package main implements a command line client tool for making requests to a KV server in order to modify or fetch
+// records.
 package main
 
 import (

@@ -1,15 +1,15 @@
-package main
+// Package server distributed implements a gRPC KV store server. It is capable of synchronising the store data across
+// multiple node instances.
+package server
 
 import (
 	"context"
 	"errors"
-	"flag"
 	"fmt"
 	"io"
 	"log"
 	"net"
 	"sort"
-	"strconv"
 	"time"
 
 	"golang.org/x/sync/errgroup"
@@ -17,46 +17,6 @@ import (
 	"google.golang.org/grpc/peer"
 
 	pb "github.com/jemgunay/distributed-kvstore/proto"
-	"github.com/jemgunay/distributed-kvstore/server/store"
-)
-
-func main() {
-	// parse flags
-	flag.IntVar(&port, "port", port, "the port this server should serve from")
-	flag.Var(&nodesAddresses, "node_address", "list of node addresses that this node should attempt to synchronise with")
-	flag.Parse()
-
-	// create a store and server
-	kvStore := store.NewStore()
-	kvStore.StartPoller()
-	server := NewKVSyncServer(kvStore, kvStore)
-
-	// start serving
-	log.Printf("server listening on port %d", port)
-	if err := server.Start(":"+strconv.Itoa(port), nodesAddresses); err != nil {
-		fmt.Printf("server has shut down unexpectedly: %s", err)
-		return
-	}
-	fmt.Printf("server has shut down")
-}
-
-// multiFlag satisfies the Value interface in order to parse multiple command line arguments of the same name into a
-// slice.
-type multiFlag []string
-
-func (m *multiFlag) String() string {
-	return fmt.Sprintf("%+v", *m)
-}
-
-func (m *multiFlag) Set(value string) error {
-	*m = append(*m, value)
-	return nil
-}
-
-var (
-	port           = 6000
-	clientTimeout  = time.Second * 10
-	nodesAddresses multiFlag
 )
 
 // Node represents a single service node in the distributed store network.
@@ -66,46 +26,54 @@ type Node struct {
 	id        uint32
 
 	*grpc.ClientConn
-	Client          pb.SyncClient
+	SyncClient      pb.SyncClient
 	syncRequestChan chan *pb.SyncMessage
 }
 
 // Storer is the interface that wraps the store methods required by a KV store.
 type Storer interface {
-	Get(key string) ([]byte, int64, error)
+	Get(key string) (value []byte, timestamp int64, err error)
 	Put(key string, value []byte, timestamp int64) error
 	Delete(key string, timestamp int64) error
 }
 
 // SyncSourcer is the interface that wraps the methods required to sync a store operation across a KV store distributed
-// network.
+// network's nodes.
 type SyncSourcer interface {
+	// SyncOut is responsible for returning a SyncMessage to be distributed to the rest of the network's nodes.
 	SyncOut() *pb.SyncMessage
+	// SyncIn receives a SyncMessage and attempts to insert the corresponding operation into the store.
 	SyncIn(*pb.SyncMessage) error
 }
 
 // KVSyncServer is a gRPC KV synchronised server which satisfies both the KVServiceServer and SyncServiceServer
 // interfaces.
 type KVSyncServer struct {
-	grpcServer  *grpc.Server
-	store       Storer
-	syncSourcer SyncSourcer
-	nodes       map[uint32]*Node
+	grpcServer *grpc.Server
+	// ClientTimeout is the timeout for the gRPC client requests. Set this before calling Start().
+	ClientTimeout time.Duration
+	store         Storer
+	syncSourcer   SyncSourcer
+	// collection of nodes in the distributed store network, where the key is the nodes ID (determined during the
+	// identification stage)
+	nodes map[uint32]*Node
 
-	startTime           int64
-	id                  uint32
-	serverShutdownChan  chan error
-	syncRequestChanSize int
+	startTime          int64
+	id                 uint32
+	serverShutdownChan chan error
+	// the buffer size of the channel in each node's client used to queue sync requests to each node
+	syncRequestChanBufSize int
 }
 
 // NewKVSyncServer creates a new gRPC KV synchronised server.
 func NewKVSyncServer(store Storer, syncSource SyncSourcer) *KVSyncServer {
 	return &KVSyncServer{
-		grpcServer:          grpc.NewServer(),
-		store:               store,
-		syncSourcer:         syncSource,
-		serverShutdownChan:  make(chan error),
-		syncRequestChanSize: 1 << 10, // 1024
+		grpcServer:             grpc.NewServer(),
+		ClientTimeout:          time.Second * 10,
+		store:                  store,
+		syncSourcer:            syncSource,
+		serverShutdownChan:     make(chan error),
+		syncRequestChanBufSize: 1 << 10, // 1024
 	}
 }
 
@@ -147,6 +115,7 @@ func (s *KVSyncServer) Start(address string, nodeAddresses []string) error {
 	// feed each node with new sync requests
 	go func() {
 		for {
+			// for each node, send store operation sync request via node's sync channel
 			syncReq := s.syncSourcer.SyncOut()
 			for _, node := range s.nodes {
 				node.syncRequestChan <- syncReq
@@ -154,17 +123,15 @@ func (s *KVSyncServer) Start(address string, nodeAddresses []string) error {
 		}
 	}()
 
-	log.Println()
-
 	return <-s.serverShutdownChan
 }
 
 func (s *KVSyncServer) identifyNodes(nodeAddresses []string) error {
-	// create temporary slice of nodes, including self, in order to derive node IDs from order of startup
+	// create temporary slice of nodes, including this node, in order to derive node IDs from order of startup
 	discoveredNodes := make([]*Node, 0, len(nodeAddresses)+1)
 	eg := errgroup.Group{}
 
-	// TODO: ping until service is up (with timeout), then perform identification
+	// TODO: ping health endpoint until service is up (with timeout), then perform identification
 	time.Sleep(time.Second)
 
 	for _, addr := range nodeAddresses {
@@ -180,7 +147,7 @@ func (s *KVSyncServer) identifyNodes(nodeAddresses []string) error {
 			client := pb.NewSyncClient(conn)
 
 			// fetch timestamp from node so that IDs can be determined from startup order
-			ctx, cancel := context.WithTimeout(context.Background(), clientTimeout)
+			ctx, cancel := context.WithTimeout(context.Background(), s.ClientTimeout)
 			defer cancel()
 			resp, err := client.Identify(ctx, &pb.IdentifyMessage{StartTime: s.startTime})
 			if err != nil {
@@ -193,8 +160,8 @@ func (s *KVSyncServer) identifyNodes(nodeAddresses []string) error {
 				startTime: resp.StartTime,
 
 				ClientConn:      conn,
-				Client:          client,
-				syncRequestChan: make(chan *pb.SyncMessage, s.syncRequestChanSize),
+				SyncClient:      client,
+				syncRequestChan: make(chan *pb.SyncMessage, s.syncRequestChanBufSize),
 			}
 			discoveredNodes = append(discoveredNodes, newNode)
 
@@ -202,6 +169,7 @@ func (s *KVSyncServer) identifyNodes(nodeAddresses []string) error {
 		})
 	}
 
+	// wait until node identification stage has completed - fail if any identify request errors
 	if err := eg.Wait(); err != nil {
 		return fmt.Errorf("failed to identify all nodes: %s", err)
 	}
@@ -230,19 +198,19 @@ func (s *KVSyncServer) identifyNodes(nodeAddresses []string) error {
 }
 
 func (s *KVSyncServer) syncPollNode(node *Node) {
-	// for each node, create long polling synchronised connection
-	//ctx, cancel := context.WithTimeout(context.Background(), clientTimeout)
-	//defer cancel()
-	syncStream, err := node.Client.Sync(context.Background())
+	// for each node, create long polling synchronised connection - do not apply a timeout to the context as we want to
+	// keep this connection open indefinitely
+	syncStream, err := node.SyncClient.Sync(context.Background())
 	if err != nil {
 		log.Printf("failed to open sync stream with node: %s", err)
 		return
 	}
 
-	// sending poller
+	// pull sync requests from node's queue and send to node via node's client
 	for req := range node.syncRequestChan {
 		if err := syncStream.Send(req); err != nil {
 			log.Printf("failed to send sync req to node %d, key: %s, err %s", node.id, req.Key, err)
+			// TODO: on error, retry x times. On retry failure, attempt to feed back into queue
 		}
 	}
 }
@@ -250,6 +218,8 @@ func (s *KVSyncServer) syncPollNode(node *Node) {
 // Shutdown gracefully shuts down the gRPC server.
 func (s *KVSyncServer) Shutdown() {
 	s.grpcServer.GracefulStop()
+	// TODO: shutdown syncs gracefully, i.e. stop accepting client requests then drain sync request pool channel before
+	// shutting down
 }
 
 // Publish processes publish requests from a client and stores the provided key/value pair.
@@ -302,13 +272,15 @@ func (s *KVSyncServer) Identify(ctx context.Context, r *pb.IdentifyMessage) (*pb
 	return &pb.IdentifyMessage{StartTime: s.startTime}, nil
 }
 
-// Sync is responsible for transmitting sync requests to the other distributed store nodes.
+// Sync is responsible for receiving sync requests from other nodes and applying them to the store.
 func (s *KVSyncServer) Sync(stream pb.Sync_SyncServer) error {
 	p, ok := peer.FromContext(stream.Context())
 	if ok {
 		log.Printf("[%s -> sync_init]", p.Addr)
 	}
+
 	for {
+		// receive a stream of sync requests from another node
 		resp, err := stream.Recv()
 		if err != nil {
 			if err == io.EOF {
@@ -318,10 +290,12 @@ func (s *KVSyncServer) Sync(stream pb.Sync_SyncServer) error {
 		}
 
 		log.Printf("[%s -> sync_in] op_type: %s, key: %s, coverage: %b", p.Addr, resp.OperationType, resp.Key, resp.Coverage)
+		// insert sync'd operation into this node's store
 		if err := s.syncSourcer.SyncIn(resp); err != nil {
 			return fmt.Errorf("failed to store sync message: %s", err)
 		}
 	}
-	log.Println("sync connection lost")
+
+	log.Println("sync connection closed")
 	return nil
 }

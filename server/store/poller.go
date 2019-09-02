@@ -29,6 +29,7 @@ type insertReq struct {
 func (s *Store) StartPoller() {
 	s.getReqChan = make(chan *getReq, s.RequestChanBufSize)
 	s.insertReqChan = make(chan *insertReq, s.RequestChanBufSize)
+	s.syncRequestFeedChan = make(chan *pb.SyncMessage, s.SyncRequestFeedChanBufSize)
 
 	go func() {
 		for {

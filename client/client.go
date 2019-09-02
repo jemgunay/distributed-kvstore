@@ -1,3 +1,4 @@
+// Package client implements a gRPC KV store client.
 package client
 
 import (

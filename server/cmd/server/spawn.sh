@@ -1,5 +1,8 @@
 #!/bin/bash
 
+# Starts up X node instances each on their own port, and points each node to the other nodes via node_address service
+# flags. Existing services on the target port range will be killed first.
+
 # get NUM_SERVICES from commandline arg provided - default to 4
 NUM_SERVICES=${1}
 if [[ ${NUM_SERVICES} == '' ]]; then

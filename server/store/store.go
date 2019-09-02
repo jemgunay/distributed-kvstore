@@ -1,3 +1,5 @@
+// Package store implements a serialised access KV store. Each record is composed of a list of operations so that
+// synchronising across nodes can be achieved whilst maintaining the order of operations, preventing data loss.
 package store
 
 import (
@@ -10,7 +12,7 @@ import (
 	pb "github.com/jemgunay/distributed-kvstore/proto"
 )
 
-// represents a record in the store
+// represents a key/value record in the store
 type record struct {
 	key        string
 	operations []*operation
@@ -40,23 +42,25 @@ type Store struct {
 	// a map of key/value pairs where the key is the hashed key and the value is the data record
 	store map[uint64]*record
 
-	// RequestChanBufSize is the size of each of the store poller request channel buffers.
+	// RequestChanBufSize is the size of each of the store poller request channel buffers. Set this before calling
+	// StartPoller() as this is where the channels are created.
 	RequestChanBufSize int64
+	// SyncRequestFeedChanBufSize is the size of sync request channel buffer. Set this before calling StartPoller() as
+	// this is where the channels are created.
+	SyncRequestFeedChanBufSize int64
 
-	getReqChan    chan *getReq
-	insertReqChan chan *insertReq
-	//deleteReqChan chan deleteReq
-	//syncReqChan   chan *pb.SyncMessage
-
+	// channels used to serialise access to the store via the store request poller
+	getReqChan          chan *getReq
+	insertReqChan       chan *insertReq
 	syncRequestFeedChan chan *pb.SyncMessage
 }
 
 // NewStore initialises and returns a new KV store.
 func NewStore() *Store {
 	return &Store{
-		store:               map[uint64]*record{},
-		RequestChanBufSize:  1 << 10, // 1024
-		syncRequestFeedChan: make(chan *pb.SyncMessage, 1<<10),
+		store:                      map[uint64]*record{},
+		RequestChanBufSize:         1 << 10, // 1024
+		SyncRequestFeedChanBufSize: 1 << 10, // 1024
 	}
 }
 
@@ -69,8 +73,8 @@ var (
 	ErrPollerBufferFull = errors.New("request failed as poller channel buffer is full")
 )
 
-// Get retrieves a record from the store.
-func (s *Store) Get(key string) ([]byte, int64, error) {
+// Get retrieves a record's value from the store, as well as the timestamp the last update occurred at.
+func (s *Store) Get(key string) (value []byte, timestamp int64, err error) {
 	req := &getReq{
 		key:    key,
 		respCh: make(chan getResp),
