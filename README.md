@@ -7,7 +7,7 @@ A basic eventually consistent distributed key-value store and gRPC server writte
 Use the `spawn.sh` script to create N number of nodes at once, linking each of them via a list of `node_address` startup flags:
 ```bash
 cd server/cmd/server
-# Create and link 3 nodes (serving on ports 7001-7005).
+# Create and link 3 nodes (serving on ports 7001-7003).
 ./spawn.sh 3
 ```
 
