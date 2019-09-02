@@ -1,3 +1,4 @@
+// Package main creates an instance of a KV server.
 package main
 
 import (
