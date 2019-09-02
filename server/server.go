@@ -20,25 +20,6 @@ import (
 	"github.com/jemgunay/distributed-kvstore/server/store"
 )
 
-// multiFlag satisfies the Value interface in order to parse multiple command line arguments of the same name into a
-// slice.
-type multiFlag []string
-
-func (m *multiFlag) String() string {
-	return fmt.Sprintf("%+v", *m)
-}
-
-func (m *multiFlag) Set(value string) error {
-	*m = append(*m, value)
-	return nil
-}
-
-var (
-	port           = 6000
-	clientTimeout  = time.Second * 10
-	nodesAddresses multiFlag
-)
-
 func main() {
 	// parse flags
 	flag.IntVar(&port, "port", port, "the port this server should serve from")
@@ -59,6 +40,25 @@ func main() {
 	fmt.Printf("server has shut down")
 }
 
+// multiFlag satisfies the Value interface in order to parse multiple command line arguments of the same name into a
+// slice.
+type multiFlag []string
+
+func (m *multiFlag) String() string {
+	return fmt.Sprintf("%+v", *m)
+}
+
+func (m *multiFlag) Set(value string) error {
+	*m = append(*m, value)
+	return nil
+}
+
+var (
+	port           = 6000
+	clientTimeout  = time.Second * 10
+	nodesAddresses multiFlag
+)
+
 // Node represents a single service node in the distributed store network.
 type Node struct {
 	address   string
@@ -77,6 +77,8 @@ type Storer interface {
 	Delete(key string, timestamp int64) error
 }
 
+// SyncSourcer is the interface that wraps the methods required to sync a store operation across a KV store distributed
+// network.
 type SyncSourcer interface {
 	SyncOut() *pb.SyncMessage
 	SyncIn(*pb.SyncMessage) error

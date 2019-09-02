@@ -43,8 +43,8 @@ type Store struct {
 	// RequestChanBufSize is the size of each of the store poller request channel buffers.
 	RequestChanBufSize int64
 
-	getReqChan    chan getReq
-	insertReqChan chan insertReq
+	getReqChan    chan *getReq
+	insertReqChan chan *insertReq
 	//deleteReqChan chan deleteReq
 	//syncReqChan   chan *pb.SyncMessage
 
@@ -71,7 +71,7 @@ var (
 
 // Get retrieves a record from the store.
 func (s *Store) Get(key string) ([]byte, int64, error) {
-	req := getReq{
+	req := &getReq{
 		key:    key,
 		respCh: make(chan getResp),
 	}
@@ -114,7 +114,7 @@ func (s *Store) performGetOperation(key string) getResp {
 
 // Put either creates a new record or amends the state of an existing record in the store.
 func (s *Store) Put(key string, value []byte, timestamp int64) error {
-	req := insertReq{
+	req := &insertReq{
 		key:           key,
 		value:         value,
 		timestamp:     timestamp,
@@ -131,9 +131,10 @@ func (s *Store) Put(key string, value []byte, timestamp int64) error {
 	}
 }
 
-// Delete performs a store record deletion.
+// Delete performs a store record deletion and triggers a sync request upon successful deletion. An error will be
+// returned if
 func (s *Store) Delete(key string, timestamp int64) error {
-	req := insertReq{
+	req := &insertReq{
 		key:           key,
 		timestamp:     timestamp,
 		operationType: pb.OperationType_DELETE,
@@ -150,21 +151,21 @@ func (s *Store) Delete(key string, timestamp int64) error {
 }
 
 // called by the poller to serialise update and delete request operations on the store map
-func (s *Store) performInsertOperation(key string, value []byte, timestamp int64, opType pb.OperationType, performSync bool) error {
-	if key == "" {
+func (s *Store) performInsertOperation(req *insertReq) error {
+	if req.key == "" {
 		return ErrInvalidKey
 	}
 
 	// get hash of key
-	hash, err := hashKey(key)
+	hash, err := hashKey(req.key)
 	if err != nil {
 		return err
 	}
 
 	// construct new operation record
 	newOp := &operation{
-		opType:          opType,
-		data:            value,
+		opType:          req.operationType,
+		data:            req.value,
 		timestamp:       time.Now().UTC().UnixNano(),
 		nodeSYNCoverage: 1,
 		nodeACKCoverage: 1,
@@ -187,16 +188,17 @@ func (s *Store) performInsertOperation(key string, value []byte, timestamp int64
 		})
 	}
 
-	r.key = key
+	r.key = req.key
 	s.store[hash] = r
 
-	if performSync {
+	if req.performSync {
+		// place sync request into feed channel so that the server can propagate this request to other nodes
 		s.syncRequestFeedChan <- &pb.SyncMessage{
-			Key:       key,
-			Value:     value,
-			Timestamp: timestamp,
+			Key:       req.key,
+			Value:     req.value,
+			Timestamp: req.timestamp,
 
-			OperationType: pb.OperationType_UPDATE,
+			OperationType: req.operationType,
 			SyncType:      pb.SyncType_SYN,
 		}
 	}
@@ -204,12 +206,15 @@ func (s *Store) performInsertOperation(key string, value []byte, timestamp int64
 	return nil
 }
 
+// SyncOut provides a way for the consumer to collect a stream of sync messages to be forwarded onto other nodes.
 func (s *Store) SyncOut() *pb.SyncMessage {
 	return <-s.syncRequestFeedChan
 }
 
+// SyncIn creates a store insert request which will be consumed by the store poller, serialising access to the store's
+// map. Unlike Put and Delete, this operation will not produce a sync request to other nodes.
 func (s *Store) SyncIn(syncMsg *pb.SyncMessage) (err error) {
-	req := insertReq{
+	req := &insertReq{
 		key:           syncMsg.Key,
 		value:         syncMsg.Value,
 		timestamp:     syncMsg.Timestamp,
