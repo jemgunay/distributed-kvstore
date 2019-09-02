@@ -1,7 +1,7 @@
 # TODO
 
-- Improve identification stage to retry/wait until all nodes are up (instead of waiting for X seconds before attempting).
 - Improve error handling of failed syncs.
+- Tests.
 - Shard keys internally based on hash range, i.e. bucket=hash_num/(max_hash/num_shards)
 - Subscribe stream operation to be consumed by clients to listen for changes to a data.
 - Dashboard tool that polls each node to determine state/to visualise data availability.

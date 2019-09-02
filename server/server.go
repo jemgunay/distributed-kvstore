@@ -52,8 +52,10 @@ type KVSyncServer struct {
 	grpcServer *grpc.Server
 	// ClientTimeout is the timeout for the gRPC client requests. Set this before calling Start().
 	ClientTimeout time.Duration
-	store         Storer
-	syncSourcer   SyncSourcer
+	// IdentifyRetries is the number of attempts to retry a connection to a node client, at once per 500ms.
+	IdentifyRetries int
+	store           Storer
+	syncSourcer     SyncSourcer
 	// collection of nodes in the distributed store network, where the key is the nodes ID (determined during the
 	// identification stage)
 	nodes map[uint32]*Node
@@ -70,6 +72,7 @@ func NewKVSyncServer(store Storer, syncSource SyncSourcer) *KVSyncServer {
 	return &KVSyncServer{
 		grpcServer:             grpc.NewServer(),
 		ClientTimeout:          time.Second * 10,
+		IdentifyRetries:        20,
 		store:                  store,
 		syncSourcer:            syncSource,
 		serverShutdownChan:     make(chan error),
@@ -132,7 +135,7 @@ func (s *KVSyncServer) identifyNodes(nodeAddresses []string) error {
 	eg := errgroup.Group{}
 
 	// TODO: ping health endpoint until service is up (with timeout), then perform identification
-	time.Sleep(time.Second)
+	//time.Sleep(time.Second)
 
 	for _, addr := range nodeAddresses {
 		addr := addr
@@ -146,10 +149,19 @@ func (s *KVSyncServer) identifyNodes(nodeAddresses []string) error {
 
 			client := pb.NewSyncClient(conn)
 
-			// fetch timestamp from node so that IDs can be determined from startup order
-			ctx, cancel := context.WithTimeout(context.Background(), s.ClientTimeout)
-			defer cancel()
-			resp, err := client.Identify(ctx, &pb.IdentifyMessage{StartTime: s.startTime})
+			var resp *pb.IdentifyMessage
+			// attempt N number of times to fetch timestamp from node so that IDs can be determined from startup order
+			for i := 0; i < s.IdentifyRetries; i++ {
+				ctx, cancel := context.WithTimeout(context.Background(), s.ClientTimeout)
+				resp, err = client.Identify(ctx, &pb.IdentifyMessage{StartTime: s.startTime})
+				cancel()
+
+				if err == nil {
+					break
+				}
+				time.Sleep(time.Millisecond * 500)
+			}
+
 			if err != nil {
 				return fmt.Errorf("failed to identify node: %s", err)
 			}
@@ -163,6 +175,7 @@ func (s *KVSyncServer) identifyNodes(nodeAddresses []string) error {
 				SyncClient:      client,
 				syncRequestChan: make(chan *pb.SyncMessage, s.syncRequestChanBufSize),
 			}
+			// TODO: protect array when appending (mutex)
 			discoveredNodes = append(discoveredNodes, newNode)
 
 			return nil
