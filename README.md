@@ -1,6 +1,6 @@
-# Distributed gRPC Key/Value Store
+# Distributed gRPC Key-Value Store
 
-A basic eventually consistent distributed key/value store and gRPC server written in Golang. Supports the storage of arbitrary byte values and resolves sync conflicts across nodes. Client examples are also included.
+A basic eventually consistent distributed key-value store and gRPC server written in Golang. Supports the storage of arbitrary byte values and resolves sync conflicts across nodes. Client examples are also included.
 
 ## Creating Server Nodes
 
