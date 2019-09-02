@@ -243,3 +243,11 @@ func hashKey(key string) (uint64, error) {
 	}
 	return h.Sum64(), nil
 }
+
+// Shutdown gracefully shuts down the store poller.
+func (s *Store) Shutdown() {
+	// TODO: test this
+	close(s.getReqChan)
+	close(s.insertReqChan)
+	close(s.syncRequestFeedChan)
+}

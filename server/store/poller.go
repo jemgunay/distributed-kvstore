@@ -25,7 +25,6 @@ type insertReq struct {
 }
 
 // StartPoller starts polling for operations to apply to the store in order to serialise access to the store's map.
-// TODO: done channel for graceful shutdown
 func (s *Store) StartPoller() {
 	s.getReqChan = make(chan *getReq, s.RequestChanBufSize)
 	s.insertReqChan = make(chan *insertReq, s.RequestChanBufSize)
@@ -34,10 +33,21 @@ func (s *Store) StartPoller() {
 	go func() {
 		for {
 			select {
-			case req := <-s.getReqChan:
+			case req, ok := <-s.getReqChan:
 				req.respCh <- s.performGetOperation(req.key)
-			case req := <-s.insertReqChan:
+				if !ok {
+					s.getReqChan = nil
+				}
+			case req, ok := <-s.insertReqChan:
 				req.respCh <- s.performInsertOperation(req)
+				if !ok {
+					s.insertReqChan = nil
+				}
+			}
+
+			// break out of polling loop is both channels are drained and nil
+			if s.getReqChan == nil && s.insertReqChan == nil {
+				return
 			}
 		}
 	}()

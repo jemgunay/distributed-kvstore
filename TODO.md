@@ -2,6 +2,8 @@
 
 - Improve error handling of failed syncs.
 - Tests.
+- Store Shutdown().
+- CI
 - Shard keys internally based on hash range, i.e. bucket=hash_num/(max_hash/num_shards)
 - Subscribe stream operation to be consumed by clients to listen for changes to a data.
 - Dashboard tool that polls each node to determine state/to visualise data availability.
