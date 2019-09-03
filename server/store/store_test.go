@@ -45,7 +45,7 @@ func TestStore_PutBufferFull(t *testing.T) {
 	catValue := []byte("cat")
 	catTimestamp := time.Now().UTC().UnixNano()
 
-	// ensure buffer is full before attempting to overflow channel buffer
+	// ensure store request buffer is full before attempting to overflow channel buffer
 	wg := sync.WaitGroup{}
 	for i := 0; i < int(store.RequestChanBufSize); i++ {
 		wg.Add(1)

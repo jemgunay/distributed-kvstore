@@ -1,0 +1,42 @@
+# Golang CircleCI 2.0 configuration file
+version: 2
+jobs:
+  build:
+    docker:
+      - image: circleci/golang:1.9
+    working_directory: /go/src/github.com/jemgunay/distributed-kvstore
+    steps:
+      - checkout
+      - run: cd server/cmd/server && go build
+      - run: cd client/cmd/client-tool && go build
+      - run: cd client/cmd/raw-examples && go build
+
+  verify:
+    docker:
+      - image: circleci/golang:1.9
+    working_directory: /go/src/github.com/jemgunay/distributed-kvstore
+    steps:
+      - checkout
+      - run: golint $(go list ./... | grep -v /vendor/)
+      - run: go vet $(go list ./... | grep -v /vendor/)
+
+  test:
+    docker:
+      - image: circleci/golang:1.9
+    working_directory: /go/src/github.com/jemgunay/distributed-kvstore
+    steps:
+      - checkout
+      - run: go test -v ./...
+
+# define order of job execution
+workflows:
+  version: 2
+  build_and_test:
+    jobs:
+      - build
+      - verify:
+          requires:
+            - build
+      - test:
+          requires:
+            - verify
