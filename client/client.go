@@ -19,6 +19,7 @@ type KVClient struct {
 	*grpc.ClientConn
 	ServiceClient pb.KVStoreClient
 	Timeout       time.Duration
+	DebugLog      bool
 }
 
 // NewKVClient creates a new gRPC KV client.
@@ -37,7 +38,9 @@ func NewKVClient(address string) (*KVClient, error) {
 
 // Publish performs a publish request over gRPC in order to publish a key/value pair.
 func (c *KVClient) Publish(key string, value interface{}) error {
-	log.Printf("[publish] %s -> %+v", key, value)
+	if c.DebugLog {
+		log.Printf("[publish] %s -> %+v", key, value)
+	}
 	ctx, cancel := context.WithTimeout(context.Background(), c.Timeout)
 	defer cancel()
 
@@ -63,7 +66,9 @@ func (c *KVClient) Publish(key string, value interface{}) error {
 
 // Fetch performs a fetch request over gRPC in order to retrieve the value that corresponds with the specified key.
 func (c *KVClient) Fetch(key string, value interface{}) (int64, error) {
-	log.Printf("[fetch] %s", key)
+	if c.DebugLog {
+		log.Printf("[fetch] %s", key)
+	}
 	ctx, cancel := context.WithTimeout(context.Background(), c.Timeout)
 	defer cancel()
 
@@ -89,7 +94,9 @@ func (c *KVClient) Fetch(key string, value interface{}) (int64, error) {
 
 // Delete performs a delete request over gRPC in order to delete the record that corresponds with the specified key.
 func (c *KVClient) Delete(key string) error {
-	log.Printf("[delete] %s", key)
+	if c.DebugLog {
+		log.Printf("[delete] %s", key)
+	}
 	ctx, cancel := context.WithTimeout(context.Background(), c.Timeout)
 	defer cancel()
 

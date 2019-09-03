@@ -57,6 +57,7 @@ func TestStore_PutBufferFull(t *testing.T) {
 		}()
 	}
 	wg.Wait()
+	time.Sleep(time.Millisecond * 500)
 
 	if err := store.Put("animal", catValue, catTimestamp); err != ErrPollerBufferFull {
 		t.Fatalf("failed to put cat, got: %s, expected: %s", err, ErrPollerBufferFull)

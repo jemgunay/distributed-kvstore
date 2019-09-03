@@ -7,9 +7,9 @@ jobs:
     working_directory: /go/src/github.com/jemgunay/distributed-kvstore
     steps:
       - checkout
-      - run: cd server/cmd/server && go build
-      - run: cd client/cmd/client-tool && go build
-      - run: cd client/cmd/raw-examples && go build
+      - run: cd server/cmd/server && go build -race
+      - run: cd client/cmd/client-tool && go build -race
+      - run: cd client/cmd/raw-examples && go build -race
 
   verify:
     docker:

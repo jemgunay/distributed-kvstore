@@ -302,7 +302,7 @@ func (s *KVSyncServer) Sync(stream pb.Sync_SyncServer) error {
 			return err
 		}
 
-		log.Printf("[%s -> sync_in] op_type: %s, key: %s, coverage: %b", p.Addr, resp.OperationType, resp.Key, resp.Coverage)
+		log.Printf("[%s -> sync_in] op_type: %s, key: %s", p.Addr, resp.OperationType, resp.Key)
 		// insert sync'd operation into this node's store
 		if err := s.syncSourcer.SyncIn(resp); err != nil {
 			return fmt.Errorf("failed to store sync message: %s", err)

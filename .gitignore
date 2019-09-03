@@ -1,3 +1,4 @@
+server/cmd/server/server
 client/cmd/client-tool/client-tool
 client/cmd/raw-examples/raw-examples
-server/cmd/server/server
+client/cmd/generate-load/generate-load
