@@ -2,6 +2,8 @@
 
 A basic eventually consistent distributed key-value store and gRPC server written in Golang. Supports the storage of arbitrary byte values and resolves sync conflicts across nodes. Client examples are also included.
 
+[![CircleCI](https://circleci.com/gh/jemgunay/distributed-kvstore/tree/master.svg?style=svg)](https://circleci.com/gh/jemgunay/distributed-kvstore/tree/master)
+
 ## Creating Server Nodes
 
 Use the `spawn.sh` script to create N number of nodes at once, linking each of them via a list of `node_address` startup flags:
