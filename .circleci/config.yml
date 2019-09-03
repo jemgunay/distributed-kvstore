@@ -17,6 +17,7 @@ jobs:
     working_directory: /go/src/github.com/jemgunay/distributed-kvstore
     steps:
       - checkout
+      - run: go get -u golang.org/x/lint/golint
       - run: golint $(go list ./... | grep -v /vendor/)
       - run: go vet $(go list ./... | grep -v /vendor/)
 
