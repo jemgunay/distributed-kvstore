@@ -116,17 +116,13 @@ func (s *KVSyncServer) Start(address string, nodeAddresses []string) error {
 			go s.syncPollNode(node)
 		}
 
-		// feed each node with new sync requests
-		go func() {
-			for {
-				// for each node, send store operation sync request via node's sync channel
-				syncReq := s.syncSourcer.SyncOut()
-				for _, node := range s.nodes {
-					node.syncRequestChan <- syncReq
-				}
+		// fan out to each node, sending store operation sync request via node's sync channel
+		for {
+			syncReq := s.syncSourcer.SyncOut()
+			for _, node := range s.nodes {
+				node.syncRequestChan <- syncReq
 			}
-		}()
-
+		}
 		return nil
 	})
 

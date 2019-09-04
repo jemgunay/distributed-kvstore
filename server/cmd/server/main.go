@@ -20,12 +20,14 @@ func main() {
 	// parse flags
 	flag.IntVar(&port, "port", port, "the port this server should serve from")
 	flag.Var(&nodesAddresses, "node_address", "list of node addresses that this node should attempt to synchronise with")
+	debugLogsEnabled := flag.Bool("logs_enabled", false, "whether debug logs should be enabled")
 	flag.Parse()
 
 	// create a store and kvServer
 	kvStore := store.NewStore()
 	kvStore.StartPoller()
 	kvServer := server.NewKVSyncServer(kvStore, kvStore)
+	kvServer.DebugLog = *debugLogsEnabled
 
 	// start serving
 	log.Printf("KV server listening on port %d", port)
