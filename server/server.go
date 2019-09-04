@@ -65,6 +65,7 @@ type KVSyncServer struct {
 	serverShutdownChan chan error
 	// the buffer size of the channel in each node's client used to queue sync requests to each node
 	syncRequestChanBufSize int
+	DebugLog               bool
 }
 
 // NewKVSyncServer creates a new gRPC KV synchronised server.
@@ -111,7 +112,7 @@ func (s *KVSyncServer) Start(address string, nodeAddresses []string) error {
 
 	// start sync poller for each node connection
 	for id, node := range s.nodes {
-		log.Printf("[node %d on %s] node %d on \"%s\" started at %d", s.id, address, id, node.address, node.startTime)
+		s.Printf("[node %d on %s] node %d on \"%s\" started at %d", s.id, address, id, node.address, node.startTime)
 		go s.syncPollNode(node)
 	}
 
@@ -133,9 +134,6 @@ func (s *KVSyncServer) identifyNodes(nodeAddresses []string) error {
 	// create temporary slice of nodes, including this node, in order to derive node IDs from order of startup
 	discoveredNodes := make([]*Node, 0, len(nodeAddresses)+1)
 	eg := errgroup.Group{}
-
-	// TODO: ping health endpoint until service is up (with timeout), then perform identification
-	//time.Sleep(time.Second)
 
 	for _, addr := range nodeAddresses {
 		addr := addr
@@ -215,14 +213,14 @@ func (s *KVSyncServer) syncPollNode(node *Node) {
 	// keep this connection open indefinitely
 	syncStream, err := node.SyncClient.Sync(context.Background())
 	if err != nil {
-		log.Printf("failed to open sync stream with node: %s", err)
+		s.Printf("failed to open sync stream with node: %s", err)
 		return
 	}
 
 	// pull sync requests from node's queue and send to node via node's client
 	for req := range node.syncRequestChan {
 		if err := syncStream.Send(req); err != nil {
-			log.Printf("failed to send sync req to node %d, key: %s, err %s", node.id, req.Key, err)
+			s.Printf("failed to send sync req to node %d, key: %s, err %s", node.id, req.Key, err)
 			// TODO: on error, retry x times. On retry failure, attempt to feed back into queue
 		}
 	}
@@ -238,7 +236,7 @@ func (s *KVSyncServer) Shutdown() {
 // Publish processes publish requests from a client and stores the provided key/value pair.
 func (s *KVSyncServer) Publish(ctx context.Context, r *pb.PublishRequest) (*pb.Empty, error) {
 	if p, ok := peer.FromContext(ctx); ok {
-		log.Printf("[%s -> publish] %s", p.Addr, r.Key)
+		s.Printf("[%s -> publish] %s", p.Addr, r.Key)
 	}
 
 	// insert record into store
@@ -249,7 +247,7 @@ func (s *KVSyncServer) Publish(ctx context.Context, r *pb.PublishRequest) (*pb.E
 // Fetch processes fetch requests from a client and returns the value and timestamp associated with the specified key.
 func (s *KVSyncServer) Fetch(ctx context.Context, r *pb.FetchRequest) (*pb.FetchResponse, error) {
 	if p, ok := peer.FromContext(ctx); ok {
-		log.Printf("[%s -> fetch] %s", p.Addr, r.Key)
+		s.Printf("[%s -> fetch] %s", p.Addr, r.Key)
 	}
 
 	var (
@@ -265,7 +263,7 @@ func (s *KVSyncServer) Fetch(ctx context.Context, r *pb.FetchRequest) (*pb.Fetch
 // Delete processes delete requests from a client returns the value and timestamp associated with the specified key.
 func (s *KVSyncServer) Delete(ctx context.Context, r *pb.DeleteRequest) (*pb.Empty, error) {
 	if p, ok := peer.FromContext(ctx); ok {
-		log.Printf("[%s -> delete] %s", p.Addr, r.Key)
+		s.Printf("[%s -> delete] %s", p.Addr, r.Key)
 	}
 
 	// pull record from store
@@ -277,7 +275,7 @@ func (s *KVSyncServer) Delete(ctx context.Context, r *pb.DeleteRequest) (*pb.Emp
 // nodes.
 func (s *KVSyncServer) Identify(ctx context.Context, r *pb.IdentifyMessage) (*pb.IdentifyMessage, error) {
 	if p, ok := peer.FromContext(ctx); ok {
-		log.Printf("[%s -> identify]", p.Addr)
+		s.Printf("[%s -> identify]", p.Addr)
 	}
 	// TODO: consume the r.StartTime here to create a node and reduce need to ping the requesting server again to
 	// exponentially reduce number of pings required in identification stage
@@ -289,7 +287,7 @@ func (s *KVSyncServer) Identify(ctx context.Context, r *pb.IdentifyMessage) (*pb
 func (s *KVSyncServer) Sync(stream pb.Sync_SyncServer) error {
 	p, ok := peer.FromContext(stream.Context())
 	if ok {
-		log.Printf("[%s -> sync_init]", p.Addr)
+		s.Printf("[%s -> sync_init]", p.Addr)
 	}
 
 	for {
@@ -302,13 +300,21 @@ func (s *KVSyncServer) Sync(stream pb.Sync_SyncServer) error {
 			return err
 		}
 
-		log.Printf("[%s -> sync_in] op_type: %s, key: %s", p.Addr, resp.OperationType, resp.Key)
+		s.Printf("[%s -> sync_in] op_type: %s, key: %s", p.Addr, resp.OperationType, resp.Key)
 		// insert sync'd operation into this node's store
 		if err := s.syncSourcer.SyncIn(resp); err != nil {
 			return fmt.Errorf("failed to store sync message: %s", err)
 		}
 	}
 
-	log.Println("sync connection closed")
+	s.Printf("sync connection to %s closed", p.Addr)
 	return nil
+}
+
+// Printf wraps log.Printf() to only write logs if logging is enabled.
+func (s *KVSyncServer) Printf(format string, v ...interface{}) {
+	if !s.DebugLog {
+		return
+	}
+	log.Printf(format, v...)
 }

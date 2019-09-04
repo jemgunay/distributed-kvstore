@@ -14,18 +14,17 @@ import (
 )
 
 var (
-	numServices       int
-	numFetchRequests  = 100
-	numPutRequests    = 100
-	numDeleteRequests = 50
-	clients           []*client.KVClient
+	numServices        int
+	numPublishRequests = 100
+	numFetchRequests   = 100
+	numDeleteRequests  = 50
 )
 
 func main() {
 	// parse flags
 	flag.IntVar(&numServices, "num_services", numServices, "the number of active services generate load for")
+	flag.IntVar(&numPublishRequests, "num_publishes", numPublishRequests, "the number of publish requests to generate per client")
 	flag.IntVar(&numFetchRequests, "num_fetches", numFetchRequests, "the number of fetch requests to generate per client")
-	flag.IntVar(&numPutRequests, "num_publishes", numPutRequests, "the number of publish requests to generate per client")
 	flag.IntVar(&numDeleteRequests, "num_deletes", numDeleteRequests, "the number of delete requests to generate per client")
 	flag.Parse()
 
@@ -47,11 +46,10 @@ func main() {
 		}
 		defer c.Close()
 
-		//clients = append(clients, c)
 		eg.Go(func() error {
 			for j := 0; j < numFetchRequests; j++ {
 				if err := c.Publish(randStr(10), randStr(100)); err != nil {
-					return fmt.Errorf("failed to publish to server: %s\n", err)
+					log.Printf("failed to publish to server: %s\n", err)
 				}
 
 				if j > numFetchRequests/2 {
@@ -69,15 +67,16 @@ func main() {
 		return
 	}
 
-	log.Printf("finished in %s", time.Since(startTime))
+	totalRequests := (numFetchRequests + numPublishRequests + numDeleteRequests) * numServices
+	log.Printf("completed %d in %s", totalRequests, time.Since(startTime))
 }
 
 func startFetching(client *client.KVClient, eg *errgroup.Group) {
 	eg.Go(func() error {
-		for k := 0; k < numFetchRequests; k++ {
+		for i := 0; i < numFetchRequests; i++ {
 			var value string
 			if _, err := client.Fetch(randStr(10), &value); err != nil {
-				return fmt.Errorf("failed to publish to server: %s\n", err)
+				//log.Printf("failed to fetch from server: %s\n", err)
 			}
 		}
 
@@ -89,7 +88,7 @@ func startDeleting(client *client.KVClient, eg *errgroup.Group) {
 	eg.Go(func() error {
 		for k := 0; k < numDeleteRequests; k++ {
 			if err := client.Delete(randStr(10)); err != nil {
-				return fmt.Errorf("failed to delete from server: %s\n", err)
+				//return fmt.Errorf("failed to delete from server: %s\n", err)
 			}
 		}
 

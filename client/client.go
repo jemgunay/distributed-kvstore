@@ -38,9 +38,8 @@ func NewKVClient(address string) (*KVClient, error) {
 
 // Publish performs a publish request over gRPC in order to publish a key/value pair.
 func (c *KVClient) Publish(key string, value interface{}) error {
-	if c.DebugLog {
-		log.Printf("[publish] %s -> %+v", key, value)
-	}
+	c.Printf("[publish] %s -> %+v", key, value)
+
 	ctx, cancel := context.WithTimeout(context.Background(), c.Timeout)
 	defer cancel()
 
@@ -66,9 +65,8 @@ func (c *KVClient) Publish(key string, value interface{}) error {
 
 // Fetch performs a fetch request over gRPC in order to retrieve the value that corresponds with the specified key.
 func (c *KVClient) Fetch(key string, value interface{}) (int64, error) {
-	if c.DebugLog {
-		log.Printf("[fetch] %s", key)
-	}
+	c.Printf("[fetch] %s", key)
+
 	ctx, cancel := context.WithTimeout(context.Background(), c.Timeout)
 	defer cancel()
 
@@ -94,9 +92,8 @@ func (c *KVClient) Fetch(key string, value interface{}) (int64, error) {
 
 // Delete performs a delete request over gRPC in order to delete the record that corresponds with the specified key.
 func (c *KVClient) Delete(key string) error {
-	if c.DebugLog {
-		log.Printf("[delete] %s", key)
-	}
+	c.Printf("[delete] %s", key)
+
 	ctx, cancel := context.WithTimeout(context.Background(), c.Timeout)
 	defer cancel()
 
@@ -110,4 +107,12 @@ func (c *KVClient) Delete(key string) error {
 	}
 
 	return nil
+}
+
+// Printf wraps log.Printf() to only write logs if logging is enabled.
+func (c *KVClient) Printf(format string, v ...interface{}) {
+	if !c.DebugLog {
+		return
+	}
+	log.Printf(format, v...)
 }
