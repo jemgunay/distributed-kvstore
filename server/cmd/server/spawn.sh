@@ -39,4 +39,5 @@ for i in $(seq 1 ${NUM_SERVICES}); do
     eval ${cmd} &
 done
 
-echo ''
+# wait for all services to identify each other
+sleep 5

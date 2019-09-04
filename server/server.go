@@ -60,9 +60,8 @@ type KVSyncServer struct {
 	// identification stage)
 	nodes map[uint32]*Node
 
-	startTime          int64
-	id                 uint32
-	serverShutdownChan chan error
+	startTime int64
+	id        uint32
 	// the buffer size of the channel in each node's client used to queue sync requests to each node
 	syncRequestChanBufSize int
 	DebugLog               bool
@@ -76,7 +75,6 @@ func NewKVSyncServer(store Storer, syncSource SyncSourcer) *KVSyncServer {
 		IdentifyRetries:        20,
 		store:                  store,
 		syncSourcer:            syncSource,
-		serverShutdownChan:     make(chan error),
 		syncRequestChanBufSize: 1 << 10, // 1024
 	}
 }
@@ -99,35 +97,40 @@ func (s *KVSyncServer) Start(address string, nodeAddresses []string) error {
 		return fmt.Errorf("failed to listen: %s", err)
 	}
 
-	// start serving via gRPC
-	go func() {
-		// blocks and returns error on shutdown
-		s.serverShutdownChan <- s.grpcServer.Serve(l)
-	}()
+	eg := errgroup.Group{}
+	eg.Go(func() error {
+		// start serving via gRPC
+		return s.grpcServer.Serve(l)
+	})
 
-	// identify the other nodes to sync with
-	if err := s.identifyNodes(nodeAddresses); err != nil {
-		return err
-	}
-
-	// start sync poller for each node connection
-	for id, node := range s.nodes {
-		s.Printf("[node %d on %s] node %d on \"%s\" started at %d", s.id, address, id, node.address, node.startTime)
-		go s.syncPollNode(node)
-	}
-
-	// feed each node with new sync requests
-	go func() {
-		for {
-			// for each node, send store operation sync request via node's sync channel
-			syncReq := s.syncSourcer.SyncOut()
-			for _, node := range s.nodes {
-				node.syncRequestChan <- syncReq
-			}
+	eg.Go(func() error {
+		// identify the other nodes to sync with
+		if err := s.identifyNodes(nodeAddresses); err != nil {
+			return err
 		}
-	}()
+		log.Printf("node identification complete for node %d", s.id)
 
-	return <-s.serverShutdownChan
+		// start sync poller for each node connection
+		for id, node := range s.nodes {
+			s.Printf("[node %d on %s] node %d on \"%s\" started at %d", s.id, address, id, node.address, node.startTime)
+			go s.syncPollNode(node)
+		}
+
+		// feed each node with new sync requests
+		go func() {
+			for {
+				// for each node, send store operation sync request via node's sync channel
+				syncReq := s.syncSourcer.SyncOut()
+				for _, node := range s.nodes {
+					node.syncRequestChan <- syncReq
+				}
+			}
+		}()
+
+		return nil
+	})
+
+	return eg.Wait()
 }
 
 func (s *KVSyncServer) identifyNodes(nodeAddresses []string) error {
