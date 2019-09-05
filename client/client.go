@@ -6,6 +6,7 @@ import (
 	"context"
 	"encoding/gob"
 	"fmt"
+	"io"
 	"log"
 	"time"
 
@@ -107,6 +108,35 @@ func (c *KVClient) Delete(key string) error {
 	}
 
 	return nil
+}
+
+func (c *KVClient) Subscribe(key string) (chan *pb.FetchResponse, error) {
+	c.Printf("[subscribe] %s", key)
+
+	stream, err := c.ServiceClient.Subscribe(context.Background(), &pb.FetchRequest{Key: key})
+	if err != nil {
+		return nil, fmt.Errorf("failed to subscribe to %s: %s", key, err)
+	}
+
+	ch := make(chan *pb.FetchResponse)
+	go func() {
+		defer c.Printf("subscription to %s closed", key)
+
+		for {
+			item, err := stream.Recv()
+			if err == io.EOF {
+				break
+			}
+			if err != nil {
+				c.Printf("failed to read from %s subscription: %s", key, err)
+				close(ch)
+				return
+			}
+
+			ch <- item
+		}
+	}()
+	return ch, nil
 }
 
 // Printf wraps log.Printf() to only write logs if logging is enabled.

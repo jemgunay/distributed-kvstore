@@ -18,6 +18,7 @@ var port = 6000
 func main() {
 	// parse flags
 	flag.IntVar(&port, "port", port, "the target server's port")
+	debugLogsEnabled := flag.Bool("logs_enabled", false, "whether debug logs should be enabled")
 	flag.Parse()
 
 	// connect to gRPC server
@@ -28,6 +29,8 @@ func main() {
 		return
 	}
 	defer c.Close()
+
+	c.DebugLog = *debugLogsEnabled
 
 	reader := bufio.NewReader(os.Stdin)
 	for {
@@ -73,6 +76,22 @@ func main() {
 				continue
 			}
 			fmt.Printf("successfully deleted\n")
+
+		case "subscribe":
+			ch, err := c.Subscribe(items[1])
+			if err != nil {
+				fmt.Printf("failed to subscribe to server: %s\n", err)
+				continue
+			}
+			for {
+				resp, ok := <-ch
+				if !ok {
+					break
+				}
+				val := strings.TrimSpace(string(resp.Value))
+				fmt.Printf("subscription read for %s: %s @ %d\n", items[1], val, resp.Timestamp)
+			}
+			fmt.Printf("sub ended")
 
 		default:
 			continue

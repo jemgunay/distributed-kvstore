@@ -29,6 +29,7 @@ func (s *Store) StartPoller() {
 	s.getReqChan = make(chan *getReq, s.RequestChanBufSize)
 	s.insertReqChan = make(chan *insertReq, s.RequestChanBufSize)
 	s.syncRequestFeedChan = make(chan *pb.SyncMessage, s.SyncRequestFeedChanBufSize)
+	s.subscribeChan = make(chan *pb.SyncMessage, s.SyncRequestFeedChanBufSize)
 
 	go func() {
 		for {
@@ -41,7 +42,11 @@ func (s *Store) StartPoller() {
 				}
 			case req, ok := <-s.insertReqChan:
 				if ok {
-					req.respCh <- s.performInsertOperation(req)
+					result := s.performInsertOperation(req)
+					req.respCh <- result
+
+					// process subscriptions
+					go s.writeSubscription(req)
 				} else {
 					s.insertReqChan = nil
 				}
@@ -53,4 +58,38 @@ func (s *Store) StartPoller() {
 			}
 		}
 	}()
+}
+
+func (s *Store) writeSubscription(req *insertReq) {
+	if s.subscriptions[req.key] == nil {
+		return
+	}
+
+	// push the request to each subscriber
+	for _, r := range s.subscriptions[req.key] {
+		r.ch <- &pb.FetchResponse{
+			Value:     req.value,
+			Timestamp: req.timestamp,
+		}
+	}
+}
+
+func (s *Store) Subscribe(key string) chan *pb.FetchResponse {
+	// create the channel for providing updates to the subscriptions
+	sub := subscription{
+		ch: make(chan *pb.FetchResponse, s.RequestChanBufSize),
+	}
+
+	if s.subscriptions[key] == nil {
+		// create bucket for this key, and add subscription
+		s.subscriptions[key] = map[uint64]subscription{
+			s.nextSubscriptionID: sub,
+		}
+	} else {
+		// add subscription into existing bucket
+		s.subscriptions[key][s.nextSubscriptionID] = sub
+	}
+
+	s.nextSubscriptionID++
+	return sub.ch
 }

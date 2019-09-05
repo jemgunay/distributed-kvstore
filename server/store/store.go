@@ -36,10 +36,17 @@ type operation struct {
 	nodeACKCoverage uint64
 }
 
+type subscription struct {
+	ch chan *pb.FetchResponse
+}
+
 // Store is a operation based KV store to facilitate a distributed server implementation.
 type Store struct {
-	// a map of key/value pairs where the key is the hashed key and the value is the data record
+	// the key is the hashed key and the value is the data record
 	store map[uint64]*record
+
+	subscriptions      map[string]map[uint64]subscription
+	nextSubscriptionID uint64
 
 	// RequestChanBufSize is the size of each of the store poller request channel buffers. Set this before calling
 	// StartPoller() as this is where the channels are created.
@@ -52,12 +59,14 @@ type Store struct {
 	getReqChan          chan *getReq
 	insertReqChan       chan *insertReq
 	syncRequestFeedChan chan *pb.SyncMessage
+	subscribeChan       chan *pb.SyncMessage
 }
 
 // NewStore initialises and returns a new KV store.
 func NewStore() *Store {
 	return &Store{
 		store:                      map[uint64]*record{},
+		subscriptions:              make(map[string]map[uint64]subscription),
 		RequestChanBufSize:         1 << 10, // 1024
 		SyncRequestFeedChanBufSize: 1 << 10, // 1024
 	}

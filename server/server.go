@@ -35,6 +35,7 @@ type Storer interface {
 	Get(key string) (value []byte, timestamp int64, err error)
 	Put(key string, value []byte, timestamp int64) error
 	Delete(key string, timestamp int64) error
+	Subscribe(key string) chan *pb.FetchResponse
 }
 
 // SyncSourcer is the interface that wraps the methods required to sync a store operation across a KV store distributed
@@ -72,7 +73,7 @@ func NewKVSyncServer(store Storer, syncSource SyncSourcer) *KVSyncServer {
 	return &KVSyncServer{
 		grpcServer:             grpc.NewServer(),
 		ClientTimeout:          time.Second * 10,
-		IdentifyRetries:        20,
+		IdentifyRetries:        100,
 		store:                  store,
 		syncSourcer:            syncSource,
 		syncRequestChanBufSize: 1 << 10, // 1024
@@ -156,7 +157,7 @@ func (s *KVSyncServer) identifyNodes(nodeAddresses []string) error {
 				if err == nil {
 					break
 				}
-				time.Sleep(time.Millisecond * 500)
+				time.Sleep(time.Millisecond * 200)
 			}
 
 			if err != nil {
@@ -259,6 +260,34 @@ func (s *KVSyncServer) Fetch(ctx context.Context, r *pb.FetchRequest) (*pb.Fetch
 	return resp, err
 }
 
+// Subscribe allows a client to long poll for changes to a key in the store, allowing the client to receive updates
+// without continuously performing fetch requests.
+func (s *KVSyncServer) Subscribe(request *pb.FetchRequest, stream pb.KVStore_SubscribeServer) error {
+	p, ok := peer.FromContext(stream.Context())
+	if ok {
+		log.Printf("[%s -> subscribe] %s", p.Addr, request.Key)
+	}
+
+	defer log.Printf("subscribe connection from %s closed", p.Addr)
+
+	ch := s.store.Subscribe(request.Key)
+	for {
+		select {
+		case resp, ok := <-ch:
+			if !ok {
+				return nil
+			}
+			if err := stream.Send(resp); err != nil {
+				return err
+			}
+		case <-stream.Context().Done():
+			return nil
+		}
+	}
+
+	return nil
+}
+
 // Delete processes delete requests from a client returns the value and timestamp associated with the specified key.
 func (s *KVSyncServer) Delete(ctx context.Context, r *pb.DeleteRequest) (*pb.Empty, error) {
 	if p, ok := peer.FromContext(ctx); ok {
@@ -277,7 +306,8 @@ func (s *KVSyncServer) Identify(ctx context.Context, r *pb.IdentifyMessage) (*pb
 		s.Printf("[%s -> identify]", p.Addr)
 	}
 	// TODO: consume the r.StartTime here to create a node and reduce need to ping the requesting server again to
-	// exponentially reduce number of pings required in identification stage
+	// exponentially reduce number of pings required in identification stage. This will also provide support for
+	// future joining nodes
 
 	return &pb.IdentifyMessage{StartTime: s.startTime}, nil
 }
