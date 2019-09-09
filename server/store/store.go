@@ -7,6 +7,7 @@ import (
 	"sort"
 
 	"github.com/OneOfOne/xxhash"
+	"golang.org/x/net/context"
 
 	pb "github.com/jemgunay/distributed-kvstore/proto"
 )
@@ -37,7 +38,10 @@ type operation struct {
 }
 
 type subscription struct {
-	ch chan *pb.FetchResponse
+	key    string
+	id     uint64
+	ch     chan *pb.FetchResponse
+	cancel context.CancelFunc
 }
 
 // Store is a operation based KV store to facilitate a distributed server implementation.
@@ -59,7 +63,7 @@ type Store struct {
 	getReqChan          chan *getReq
 	insertReqChan       chan *insertReq
 	syncRequestFeedChan chan *pb.SyncMessage
-	subscribeChan       chan *pb.SyncMessage
+	unsubscribeChan     chan subscription
 }
 
 // NewStore initialises and returns a new KV store.

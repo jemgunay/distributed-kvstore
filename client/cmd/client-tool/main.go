@@ -68,17 +68,17 @@ func main() {
 				fmt.Printf("failed to publish to server: %s\n", err)
 				continue
 			}
-			fmt.Printf("successfully published\n")
+			fmt.Println("successfully published")
 
 		case "delete":
 			if err := c.Delete(items[1]); err != nil {
 				fmt.Printf("failed to delete from server: %s\n", err)
 				continue
 			}
-			fmt.Printf("successfully deleted\n")
+			fmt.Println("successfully deleted")
 
 		case "subscribe":
-			ch, err := c.Subscribe(items[1])
+			ch, _, err := c.Subscribe(items[1])
 			if err != nil {
 				fmt.Printf("failed to subscribe to server: %s\n", err)
 				continue
@@ -91,7 +91,7 @@ func main() {
 				val := strings.TrimSpace(string(resp.Value))
 				fmt.Printf("subscription read for %s: %s @ %d\n", items[1], val, resp.Timestamp)
 			}
-			fmt.Printf("sub ended")
+			fmt.Println("subscription ended")
 
 		default:
 			continue

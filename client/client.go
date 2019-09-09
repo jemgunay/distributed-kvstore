@@ -110,18 +110,31 @@ func (c *KVClient) Delete(key string) error {
 	return nil
 }
 
-func (c *KVClient) Subscribe(key string) (chan *pb.FetchResponse, error) {
+// Subscribe performs a subscribe request over gRPC in order to stream changes consumed by the node to the client. This
+// allows a client to receive changes to the specified key when they occur instead of repeatedly making a request for
+// the corresponding value. The response channel will be closed when the stream EOFs. The cancel func can be used to
+// prematurely cancel the subscription connection.
+func (c *KVClient) Subscribe(key string) (chan *pb.FetchResponse, context.CancelFunc, error) {
 	c.Printf("[subscribe] %s", key)
 
-	stream, err := c.ServiceClient.Subscribe(context.Background(), &pb.FetchRequest{Key: key})
+	ctx, cancel := context.WithCancel(context.Background())
+	// subscribe to changes for the specified key
+	stream, err := c.ServiceClient.Subscribe(ctx, &pb.FetchRequest{Key: key})
 	if err != nil {
-		return nil, fmt.Errorf("failed to subscribe to %s: %s", key, err)
+		return nil, cancel, fmt.Errorf("failed to subscribe to %s: %s", key, err)
 	}
 
 	ch := make(chan *pb.FetchResponse)
 	go func() {
-		defer c.Printf("subscription to %s closed", key)
+		defer func() {
+			c.Printf("subscription to %s closed", key)
+			cancel()
+			close(ch)
+			// nil channel to prevent panic on write
+			ch = nil
+		}()
 
+		// retrieve stream of responses
 		for {
 			item, err := stream.Recv()
 			if err == io.EOF {
@@ -129,14 +142,14 @@ func (c *KVClient) Subscribe(key string) (chan *pb.FetchResponse, error) {
 			}
 			if err != nil {
 				c.Printf("failed to read from %s subscription: %s", key, err)
-				close(ch)
-				return
+				break
 			}
 
 			ch <- item
 		}
 	}()
-	return ch, nil
+
+	return ch, cancel, nil
 }
 
 // Printf wraps log.Printf() to only write logs if logging is enabled.
