@@ -2,7 +2,7 @@
 
 [![CircleCI](https://circleci.com/gh/jemgunay/distributed-kvstore/tree/master.svg?style=svg)](https://circleci.com/gh/jemgunay/distributed-kvstore/tree/master)
 
-A basic eventually consistent distributed key-value store and gRPC server written in Golang. Supports the storage of arbitrary byte values and resolves sync conflicts across nodes. Client examples are also included.
+A basic eventually consistent distributed key-value store and gRPC server written in Golang. Supports the storage of arbitrary byte values and resolves sync conflicts across nodes. Multiple client examples are also included.
 
 ## Creating Server Nodes
 
@@ -32,11 +32,12 @@ cd client/cmd/client-tool
 go build && ./client-tool -port=7001
 ```
 
-### Example Tool Input
+### Example `client-tool` Input
 
 `publish animals dog`<br>
 `fetch animals`<br>
-`delete animals`
+`delete animals`<br>
+`subscribe animals`
 
 ## Programmatically Connect to Nodes in Go
 
