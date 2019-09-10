@@ -8,3 +8,7 @@ clean:
           client/cmd/generate-load/generate-load \
           client/cmd/raw-examples/raw-examples \
           server/cmd/server/server
+
+# update vendored Go dependencies
+update_deps:
+	go mod tidy && go mod vendor
