@@ -1,6 +1,5 @@
 # TODO
 
-- Complete subscribe implementation.
 - Monitor tool to probe status of nodes.
 - Improve error handling of failed syncs.
 - More tests.
