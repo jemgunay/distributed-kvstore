@@ -66,6 +66,7 @@ type KVSyncServer struct {
 	// the buffer size of the channel in each node's client used to queue sync requests to each node
 	syncRequestChanBufSize int
 	DebugLog               bool
+	shutdownCh             chan struct{}
 }
 
 // NewKVSyncServer creates a new gRPC KV synchronised server.
@@ -86,6 +87,7 @@ func (s *KVSyncServer) Start(address string, nodeAddresses []string) error {
 		return errors.New("server store is uninitialised")
 	}
 
+	s.shutdownCh = make(chan struct{})
 	s.startTime = time.Now().UTC().UnixNano()
 
 	// register gRPC handlers
@@ -119,12 +121,17 @@ func (s *KVSyncServer) Start(address string, nodeAddresses []string) error {
 
 		// fan out to each node, sending store operation sync request via node's sync channel
 		for {
+			select {
+			case <-s.shutdownCh:
+				return nil
+			default:
+			}
+
 			syncReq := s.syncSourcer.SyncOut()
 			for _, node := range s.nodes {
 				node.syncRequestChan <- syncReq
 			}
 		}
-		return nil
 	})
 
 	return eg.Wait()
@@ -229,6 +236,7 @@ func (s *KVSyncServer) syncPollNode(node *Node) {
 
 // Shutdown gracefully shuts down the gRPC server.
 func (s *KVSyncServer) Shutdown() {
+	close(s.shutdownCh)
 	s.grpcServer.GracefulStop()
 	// TODO: shutdown syncs gracefully, i.e. stop accepting client requests then drain sync request pool channel before
 	// shutting down
@@ -286,10 +294,10 @@ func (s *KVSyncServer) Subscribe(request *pb.FetchRequest, stream pb.KVStore_Sub
 			}
 		case <-stream.Context().Done():
 			return nil
+		case <-s.shutdownCh:
+			return nil
 		}
 	}
-
-	return nil
 }
 
 // Delete processes delete requests from a client returns the value and timestamp associated with the specified key.
