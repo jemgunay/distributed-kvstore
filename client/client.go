@@ -98,12 +98,8 @@ func (c *KVClient) Delete(key string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), c.Timeout)
 	defer cancel()
 
-	req := pb.DeleteRequest{
-		Key: key,
-	}
-
-	// perform fetch request
-	if _, err := c.ServiceClient.Delete(ctx, &req); err != nil {
+	// perform delete request
+	if _, err := c.ServiceClient.Delete(ctx, &pb.DeleteRequest{Key: key}); err != nil {
 		return fmt.Errorf("failed to delete: %s", err)
 	}
 
@@ -129,10 +125,10 @@ func (c *KVClient) Subscribe(key string) (chan *pb.FetchResponse, context.Cancel
 		// retrieve stream of responses - calling cancel will break out of this loop, triggering the clean up below
 		for {
 			item, err := stream.Recv()
-			if err == io.EOF {
-				break
-			}
 			if err != nil {
+				if err == io.EOF {
+					break
+				}
 				c.Printf("failed to read from %s subscription: %s", key, err)
 				break
 			}
