@@ -23,7 +23,6 @@ func TestStore_Put(t *testing.T) {
 
 	store := NewStore()
 	store.StartPoller()
-	defer store.Shutdown()
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -40,7 +39,7 @@ func TestStore_PutBufferFull(t *testing.T) {
 	store.getReqChan = make(chan *getReq, store.RequestChanBufSize)
 	store.insertReqChan = make(chan *insertReq, store.RequestChanBufSize)
 	store.syncRequestFeedChan = make(chan *pb.SyncMessage, store.SyncRequestFeedChanBufSize)
-	defer store.Shutdown()
+	store.unsubscribeChan = make(chan subscription, store.SyncRequestFeedChanBufSize)
 
 	catValue := []byte("cat")
 	catTimestamp := time.Now().UTC().UnixNano()
@@ -67,7 +66,6 @@ func TestStore_PutBufferFull(t *testing.T) {
 func TestStore_Get(t *testing.T) {
 	store := NewStore()
 	store.StartPoller()
-	defer store.Shutdown()
 
 	// attempt to get something that doesn't exist in the store
 	value, ts, err := store.Get("animal")
@@ -96,7 +94,6 @@ func TestStore_Get(t *testing.T) {
 func TestStore_Delete(t *testing.T) {
 	store := NewStore()
 	store.StartPoller()
-	defer store.Shutdown()
 
 	// attempt to get something that doesn't exist in the store
 	if _, _, err := store.Get("animal"); err != ErrNotFound {

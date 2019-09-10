@@ -106,7 +106,7 @@ func (s *KVSyncServer) Start(address string, nodeAddresses []string) error {
 
 	eg.Go(func() error {
 		// identify the other nodes to sync with
-		if err := s.identifyNodes(nodeAddresses); err != nil {
+		if err := s.identifyInitialNodes(nodeAddresses); err != nil {
 			return err
 		}
 		log.Printf("node identification complete for node %d", s.id)
@@ -130,7 +130,8 @@ func (s *KVSyncServer) Start(address string, nodeAddresses []string) error {
 	return eg.Wait()
 }
 
-func (s *KVSyncServer) identifyNodes(nodeAddresses []string) error {
+// attempt to form the initial network with all nodes addressed in the startup flags
+func (s *KVSyncServer) identifyInitialNodes(nodeAddresses []string) error {
 	// create temporary slice of nodes, including this node, in order to derive node IDs from order of startup
 	discoveredNodes := make([]*Node, 0, len(nodeAddresses)+1)
 	eg := errgroup.Group{}

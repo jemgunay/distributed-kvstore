@@ -98,6 +98,9 @@ func (s *Store) fanOutSubscriptions(req *insertReq) {
 	}
 }
 
+// Subscribe hooks into the store to listen for insert requests from other nodes or clients. These are then forwarded
+// on to the consumer via the response channel. The cancel func will unregister the subscription listener and gracefully
+// clean up references in the store.
 func (s *Store) Subscribe(ctx context.Context, key string) (chan *pb.FetchResponse, context.CancelFunc) {
 	newID := atomic.AddUint64(&s.nextSubscriptionID, 1)
 
@@ -120,7 +123,7 @@ func (s *Store) Subscribe(ctx context.Context, key string) (chan *pb.FetchRespon
 		s.subscriptions[key][newID] = newSub
 	}
 
-	// setup cancellation to unsubscribe
+	// setup cancellation to provide the ability to unsubscribe
 	go func() {
 		<-ctx.Done()
 		s.unsubscribeChan <- newSub

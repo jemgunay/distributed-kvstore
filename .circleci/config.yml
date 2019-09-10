@@ -27,7 +27,7 @@ jobs:
     working_directory: /go/src/github.com/jemgunay/distributed-kvstore
     steps:
       - checkout
-      - run: go test -v ./...
+      - run: go test -v -race ./...
 
 # define order of job execution
 workflows:
