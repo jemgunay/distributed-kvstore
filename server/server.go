@@ -49,8 +49,10 @@ type SyncSourcer interface {
 	SyncIn(*pb.SyncMessage) error
 }
 
+// State represents the active state of the server.
 type State uint
 
+// The possible states a KV server can be in.
 const (
 	Uninitialised State = iota
 	InitialIdentification
