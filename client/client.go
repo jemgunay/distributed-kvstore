@@ -126,15 +126,7 @@ func (c *KVClient) Subscribe(key string) (chan *pb.FetchResponse, context.Cancel
 
 	ch := make(chan *pb.FetchResponse)
 	go func() {
-		defer func() {
-			c.Printf("subscription to %s closed", key)
-			cancel()
-			close(ch)
-			// nil channel to prevent panic on write
-			ch = nil
-		}()
-
-		// retrieve stream of responses
+		// retrieve stream of responses - calling cancel will break out of this loop, triggering the clean up below
 		for {
 			item, err := stream.Recv()
 			if err == io.EOF {
@@ -147,6 +139,13 @@ func (c *KVClient) Subscribe(key string) (chan *pb.FetchResponse, context.Cancel
 
 			ch <- item
 		}
+
+		// clean up
+		c.Printf("subscription to %s closed", key)
+		cancel()
+		close(ch)
+		// nil channel to prevent panic on unexpected write
+		ch = nil
 	}()
 
 	return ch, cancel, nil

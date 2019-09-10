@@ -35,7 +35,7 @@ type Storer interface {
 	Get(key string) (value []byte, timestamp int64, err error)
 	Put(key string, value []byte, timestamp int64) error
 	Delete(key string, timestamp int64) error
-	Subscribe(key string) (chan *pb.FetchResponse, context.CancelFunc)
+	Subscribe(ctx context.Context, key string) (chan *pb.FetchResponse, context.CancelFunc)
 }
 
 // SyncSourcer is the interface that wraps the methods required to sync a store operation across a KV store distributed
@@ -261,14 +261,14 @@ func (s *KVSyncServer) Fetch(ctx context.Context, r *pb.FetchRequest) (*pb.Fetch
 }
 
 // Subscribe allows a client to long poll for changes to a key in the store, allowing the client to receive updates
-// without continuously performing fetch requests.
+// without continuously performing fetch requests. If a delete request is processed, the subscription will be ended.
 func (s *KVSyncServer) Subscribe(request *pb.FetchRequest, stream pb.KVStore_SubscribeServer) error {
 	p, ok := peer.FromContext(stream.Context())
 	if ok {
 		s.Printf("[%s -> subscribe] %s", p.Addr, request.Key)
 	}
 
-	ch, cancel := s.store.Subscribe(request.Key)
+	ch, cancel := s.store.Subscribe(stream.Context(), request.Key)
 	defer func() {
 		s.Printf("subscribe connection from %s closed", p.Addr)
 		cancel()

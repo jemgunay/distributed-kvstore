@@ -98,11 +98,11 @@ func (s *Store) fanOutSubscriptions(req *insertReq) {
 	}
 }
 
-func (s *Store) Subscribe(key string) (chan *pb.FetchResponse, context.CancelFunc) {
+func (s *Store) Subscribe(ctx context.Context, key string) (chan *pb.FetchResponse, context.CancelFunc) {
 	newID := atomic.AddUint64(&s.nextSubscriptionID, 1)
 
 	// create the channel for providing updates to the subscriptions
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(ctx)
 	newSub := subscription{
 		key:    key,
 		id:     newID,
