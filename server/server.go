@@ -23,9 +23,10 @@ import (
 
 // Node represents a single service node in the distributed store network.
 type Node struct {
-	address   string
-	startTime int64
-	id        uint32
+	address      string
+	startTime    int64
+	id           uint32
+	syncComplete bool // TODO
 
 	*grpc.ClientConn
 	SyncClient      pb.SyncClient
@@ -67,15 +68,15 @@ type KVSyncServer struct {
 	grpcServer *grpc.Server
 	// ClientTimeout is the timeout for the gRPC client requests. Set this before calling Start().
 	ClientTimeout time.Duration
-	// IdentifyRetries is the number of attempts to retry a connection to a node client, at once per 500ms.
-	IdentifyRetries int
-	store           Storer
-	syncSourcer     SyncSourcer
+	store         Storer
+	syncSourcer   SyncSourcer
 	// collection of nodes in the distributed store network, where the key is the nodes ID (determined during the
 	// identification stage)
-	nodes     map[uint32]*Node
-	startTime int64
-	id        uint32
+	nodes map[uint32]*Node
+	// IdentifyRetries is the number of attempts to retry a connection to a node client, at once per 200ms.
+	IdentifyRetries int
+	startTime       int64
+	id              uint32
 	// the buffer size of the channel in each node's client used to queue sync requests to each node
 	syncRequestChanBufSize int
 	DebugLog               bool
@@ -198,9 +199,8 @@ func (s *KVSyncServer) identifyInitialNodes(nodeAddresses []string) error {
 
 			// create new node
 			newNode := &Node{
-				address:   addr,
-				startTime: resp.StartTime,
-
+				address:         addr,
+				startTime:       resp.StartTime,
 				ClientConn:      conn,
 				SyncClient:      client,
 				syncRequestChan: make(chan *pb.SyncMessage, s.syncRequestChanBufSize),
