@@ -5,8 +5,6 @@ import (
 	"sync"
 	"testing"
 	"time"
-
-	pb "github.com/jemgunay/distributed-kvstore/proto"
 )
 
 func TestStore_Put(t *testing.T) {
@@ -36,10 +34,7 @@ func TestStore_Put(t *testing.T) {
 func TestStore_PutBufferFull(t *testing.T) {
 	// don't start poller - request channel should fill up and finally return an ErrPollerBufferFull error on Put()
 	store := NewStore()
-	store.getReqChan = make(chan *getReq, store.RequestChanBufSize)
 	store.insertReqChan = make(chan *insertReq, store.RequestChanBufSize)
-	store.syncRequestFeedChan = make(chan *pb.SyncMessage, store.SyncRequestFeedChanBufSize)
-	store.unsubscribeChan = make(chan subscription, store.SyncRequestFeedChanBufSize)
 
 	catValue := []byte("cat")
 	catTimestamp := time.Now().UTC().UnixNano()

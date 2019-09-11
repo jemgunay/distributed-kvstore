@@ -73,8 +73,7 @@ type KVSyncServer struct {
 	syncSourcer     SyncSourcer
 	// collection of nodes in the distributed store network, where the key is the nodes ID (determined during the
 	// identification stage)
-	nodes map[uint32]*Node
-
+	nodes     map[uint32]*Node
 	startTime int64
 	id        uint32
 	// the buffer size of the channel in each node's client used to queue sync requests to each node
@@ -150,12 +149,11 @@ func (s *KVSyncServer) Start(address string, nodeAddresses []string) error {
 			case <-s.shutdownCh:
 				return nil
 			default:
-			}
-
-			// fan out to each node, sending store operation sync request via node's sync channel
-			syncReq := s.syncSourcer.SyncOut()
-			for _, node := range s.nodes {
-				node.syncRequestChan <- syncReq
+				// fan out to each node, sending store operation sync request via node's sync channel
+				syncReq := s.syncSourcer.SyncOut()
+				for _, node := range s.nodes {
+					node.syncRequestChan <- syncReq
+				}
 			}
 		}
 	})
