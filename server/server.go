@@ -12,21 +12,21 @@ import (
 	"sort"
 	"time"
 
-	pb "github.com/jemgunay/distributed-kvstore/proto"
-	"github.com/jemgunay/distributed-kvstore/server/store"
 	"golang.org/x/sync/errgroup"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/peer"
 	"google.golang.org/grpc/status"
+
+	pb "github.com/jemgunay/distributed-kvstore/proto"
+	"github.com/jemgunay/distributed-kvstore/server/store"
 )
 
 // Node represents a single service node in the distributed store network.
 type Node struct {
-	address      string
-	startTime    int64
-	id           uint32
-	syncComplete bool // TODO
+	address   string
+	startTime int64
+	id        uint32
 
 	*grpc.ClientConn
 	SyncClient      pb.SyncClient
@@ -80,7 +80,7 @@ type KVSyncServer struct {
 	// the buffer size of the channel in each node's client used to queue sync requests to each node
 	syncRequestChanBufSize int
 	DebugLog               bool
-	shutdownCh             chan struct{}
+	shutdownChan           chan struct{}
 }
 
 // NewKVSyncServer creates a new gRPC KV synchronised server.
@@ -110,7 +110,6 @@ func (s *KVSyncServer) Start(address string, nodeAddresses []string) error {
 		return errors.New("server store is uninitialised")
 	}
 
-	s.shutdownCh = make(chan struct{})
 	s.startTime = time.Now().UTC().UnixNano()
 
 	// register gRPC handlers
@@ -131,6 +130,7 @@ func (s *KVSyncServer) Start(address string, nodeAddresses []string) error {
 
 	eg.Go(func() error {
 		// identify the other nodes to initially sync with
+		s.shutdownChan = make(chan struct{})
 		s.state = InitialIdentification
 		if err := s.identifyInitialNodes(nodeAddresses); err != nil {
 			return err
@@ -147,10 +147,11 @@ func (s *KVSyncServer) Start(address string, nodeAddresses []string) error {
 		// main server poller
 		for {
 			select {
-			case <-s.shutdownCh:
+			case <-s.shutdownChan:
 				return nil
 			default:
-				// fan out to each node, sending store operation sync request via node's sync channel
+				// pull sync request from store and fan out to each node, sending store operation sync request via
+				// node's sync channel
 				syncReq := s.syncSourcer.SyncOut()
 				for _, node := range s.nodes {
 					node.syncRequestChan <- syncReq
@@ -183,6 +184,7 @@ func (s *KVSyncServer) identifyInitialNodes(nodeAddresses []string) error {
 			var resp *pb.IdentifyMessage
 			// attempt N number of times to fetch timestamp from node so that IDs can be determined from startup order
 			for i := 0; i < s.IdentifyRetries; i++ {
+				// TODO: add timeout back in here?
 				ctx, cancel := context.WithTimeout(context.Background(), s.ClientTimeout)
 				resp, err = client.Identify(ctx, &pb.IdentifyMessage{StartTime: s.startTime})
 				cancel()
@@ -258,15 +260,14 @@ func (s *KVSyncServer) syncPollNode(node *Node) {
 	}
 }
 
-// Shutdown gracefully shuts down the gRPC server.
+// Shutdown gracefully shuts down the gRPC server. TODO: test this gracefully shuts down as expected.
 func (s *KVSyncServer) Shutdown() {
 	if s.state < InitialIdentification || s.state == Shutdown {
 		return
 	}
 	s.state = Shutdown
 	s.grpcServer.GracefulStop()
-	close(s.shutdownCh)
-	// TODO: test this
+	close(s.shutdownChan)
 }
 
 // Publish processes publish requests from a client and stores the provided key/value pair.
@@ -321,7 +322,7 @@ func (s *KVSyncServer) Subscribe(request *pb.FetchRequest, stream pb.KVStore_Sub
 			}
 		case <-stream.Context().Done():
 			return nil
-		case <-s.shutdownCh:
+		case <-s.shutdownChan:
 			return nil
 		}
 	}
