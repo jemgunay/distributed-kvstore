@@ -25,7 +25,8 @@ done
 for i in $(seq 1 ${NUM_SERVICES}); do
     # build node_address flags
     port_num=$((7000 + ${i}))
-    cmd="./server -port=${port_num}"
+#    cmd="./server -port=${port_num}"
+    cmd="./server -logs_enabled -port=${port_num}"
     for j in $(seq 1 ${NUM_SERVICES}); do
         if [[ ${j} == ${i} ]]; then
             continue
