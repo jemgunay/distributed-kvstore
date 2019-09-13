@@ -10,6 +10,7 @@ import (
 	"log"
 	"net"
 	"sort"
+	"sync"
 	"time"
 
 	"golang.org/x/sync/errgroup"
@@ -42,9 +43,9 @@ type Storer interface {
 }
 
 // SyncSourcer is the interface that wraps the methods required to sync a store operation across a KV store distributed
-// network's timestampLookup.
+// network's nodes.
 type SyncSourcer interface {
-	// SyncOut is responsible for returning a SyncMessage to be distributed to the rest of the network's timestampLookup.
+	// SyncOut is responsible for returning a SyncMessage to be distributed to the rest of the network's nodes.
 	SyncOut() *pb.SyncMessage
 	// SyncIn receives a SyncMessage and attempts to insert the corresponding operation into the store.
 	SyncIn(*pb.SyncMessage) error
@@ -67,9 +68,11 @@ var (
 )
 
 type nodeStore struct {
-	// collection of timestampLookup in the distributed store network, where the key is the node's startup timestamp
+	// collection of nodes in the distributed store network, where the key is the node's startup timestamp
 	timestampLookup map[int64]*Node
 	ordered         []*Node
+	identifyChan    chan *pb.IdentifyMessage
+	wg              *sync.WaitGroup
 }
 
 // KVSyncServer is a gRPC KV synchronised server which satisfies both the KVServiceServer and SyncServiceServer
@@ -95,13 +98,15 @@ type KVSyncServer struct {
 // NewKVSyncServer creates a new gRPC KV synchronised server.
 func NewKVSyncServer(store Storer, syncSource SyncSourcer) *KVSyncServer {
 	return &KVSyncServer{
-		state:                  Uninitialised,
-		grpcServer:             grpc.NewServer(),
-		ClientTimeout:          time.Second * 10,
-		IdentifyRetries:        100,
-		store:                  store,
-		syncSourcer:            syncSource,
-		nodes:                  &nodeStore{},
+		state:           Uninitialised,
+		grpcServer:      grpc.NewServer(),
+		ClientTimeout:   time.Second * 10,
+		IdentifyRetries: 100,
+		store:           store,
+		syncSourcer:     syncSource,
+		nodes: &nodeStore{
+			wg: &sync.WaitGroup{},
+		},
 		syncRequestChanBufSize: 1 << 10, // 1024
 	}
 }
@@ -139,24 +144,19 @@ func (s *KVSyncServer) Start(address string, nodeAddresses []string) error {
 	})
 
 	eg.Go(func() error {
-		// identify the other timestampLookup to initially sync with
+		// identify the other nodes to initially sync with
 		s.shutdownChan = make(chan struct{})
-		s.state = InitialIdentification
 		if err := s.identifyInitialNodes(nodeAddresses); err != nil {
 			return err
 		}
 		log.Printf("node identification complete for node %d", s.id)
 
-		// start sync poller for each node connection
-		for _, node := range s.nodes.timestampLookup {
-			s.Printf("[node %d on %s] node %d on \"%s\" started at %d", s.id, address, node.id, node.address, node.startTime)
-			go s.syncPollNode(node)
-		}
-
 		s.state = Initialised
 		// main server poller
 		for {
 			select {
+			case <-s.nodes.identifyChan:
+
 			case <-s.shutdownChan:
 				return nil
 			default:
@@ -173,10 +173,11 @@ func (s *KVSyncServer) Start(address string, nodeAddresses []string) error {
 	return eg.Wait()
 }
 
-// attempt to form the initial network with all timestampLookup addressed in the startup flags
+// attempt to form the initial network with all nodes addressed in the startup flags
 func (s *KVSyncServer) identifyInitialNodes(nodeAddresses []string) error {
+	s.state = InitialIdentification
 	s.nodes.timestampLookup = make(map[int64]*Node, len(nodeAddresses))
-	// create temporary slice of timestampLookup, including this node, in order to derive node IDs from order of startup
+	// create temporary slice of nodes, including this node, in order to derive node IDs from order of startup
 	s.nodes.ordered = make([]*Node, 0, len(nodeAddresses)+1)
 	eg := errgroup.Group{}
 
@@ -197,7 +198,6 @@ func (s *KVSyncServer) identifyInitialNodes(nodeAddresses []string) error {
 			for i := 0; i < s.IdentifyRetries; i++ {
 				ctx, _ := context.WithTimeout(context.Background(), s.ClientTimeout)
 				resp, err = client.Identify(ctx, &pb.IdentifyMessage{StartTime: s.startTime})
-
 				if err == nil {
 					break
 				}
@@ -225,7 +225,7 @@ func (s *KVSyncServer) identifyInitialNodes(nodeAddresses []string) error {
 
 	// wait until node identification stage has completed - fail if any identify request errors
 	if err := eg.Wait(); err != nil {
-		return fmt.Errorf("failed to identify all timestampLookup: %s", err)
+		return fmt.Errorf("failed to identify all nodes: %s", err)
 	}
 
 	// add in self node in order to determine node IDs
@@ -237,14 +237,18 @@ func (s *KVSyncServer) identifyInitialNodes(nodeAddresses []string) error {
 	})
 
 	// use index in ordered slice as the node ID - each node will derive the same IDs from this process independently
-	for id, n := range s.nodes.ordered {
-		if n.startTime == s.startTime {
+	for id, node := range s.nodes.ordered {
+		if node.startTime == s.startTime {
 			// we don't want to add self node to node store, but store its ID
 			s.id = uint32(id)
 			continue
 		}
-		n.id = uint32(id)
-		s.nodes.timestampLookup[n.startTime] = n
+		node.id = uint32(id)
+		s.nodes.timestampLookup[node.startTime] = node
+
+		// start sync poller for each node connection
+		s.Printf("[node %d on %s] node %d on \"%s\" started at %d", s.id, s.address, node.id, node.address, node.startTime)
+		go s.syncPollNode(node)
 	}
 
 	return nil
@@ -361,7 +365,7 @@ func (s *KVSyncServer) Delete(ctx context.Context, r *pb.DeleteRequest) (*pb.Emp
 }
 
 // Identify processes identify requests used to initially ID a node on startup based on the startup timestamps of all
-// timestampLookup.
+// nodes.
 func (s *KVSyncServer) Identify(ctx context.Context, r *pb.IdentifyMessage) (*pb.IdentifyMessage, error) {
 	if p, ok := peer.FromContext(ctx); ok {
 		s.Printf("[%s -> identify]", p.Addr)
@@ -377,12 +381,12 @@ func (s *KVSyncServer) Identify(ctx context.Context, r *pb.IdentifyMessage) (*pb
 
 	// TODO: consume the r.StartTime here to create a node and reduce need to ping the requesting server again to
 	// exponentially reduce number of pings required in identification stage. This will also provide support for
-	// future joining timestampLookup
+	// future joining nodes
 
 	return &pb.IdentifyMessage{StartTime: s.startTime}, nil
 }
 
-// Sync is responsible for receiving sync requests from other timestampLookup and applying them to the store.
+// Sync is responsible for receiving sync requests from other nodes and applying them to the store.
 func (s *KVSyncServer) Sync(stream pb.Sync_SyncServer) error {
 	p, ok := peer.FromContext(stream.Context())
 	if ok {
