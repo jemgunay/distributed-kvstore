@@ -10,11 +10,11 @@ if [[ ${NUM_SERVICES} == '' ]]; then
 fi
 
 # build service
-go build
-if [[ $? != 0 ]]; then
-    echo "failed to build"
-    exit 1
-fi
+#go build
+#if [[ $? != 0 ]]; then
+#    echo "failed to build"
+#    exit 1
+#fi
 
 # kill existing services
 for i in $(seq 1 ${NUM_SERVICES}); do

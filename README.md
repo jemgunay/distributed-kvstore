@@ -10,7 +10,7 @@ Use the `spawn.sh` script to create N number of nodes at once, linking each of t
 ```bash
 cd server/cmd/server
 # Create and link 3 nodes (serving on ports 7001-7003).
-./spawn.sh 3
+go build && ./spawn.sh 3
 ```
 
 Manually creating a single node (not linked to any other nodes):

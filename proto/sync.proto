@@ -9,6 +9,7 @@ service Sync {
 
 message IdentifyMessage {
     int64 start_time = 1;
+    string addr = 2;
 }
 
 enum OperationType {
