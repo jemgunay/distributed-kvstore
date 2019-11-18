@@ -381,7 +381,8 @@ func (s *KVSyncServer) Identify(ctx context.Context, r *pb.IdentifyMessage) (*pb
 	}
 
 	// handle nodes identifying when joining the network after network initialisation
-	/*if s.state == Initialised {
+	// TODO: fix these - prevent infinite Identify request loop
+	if s.state == Initialised {
 		// this must be a node connecting after the initial identification phase
 		if r.StartTime < s.nodes.ordered[len(s.nodes.ordered)-1].startTime {
 			// this newly connecting node is too old - trigger a timestamp refresh
@@ -393,7 +394,7 @@ func (s *KVSyncServer) Identify(ctx context.Context, r *pb.IdentifyMessage) (*pb
 		if err := s.identifyNode(r.Addr); err != nil {
 			return &pb.IdentifyMessage{}, status.Error(codes.Internal, err.Error())
 		}
-	}*/
+	}
 
 	return &pb.IdentifyMessage{
 		StartTime: s.startTime,

@@ -22,7 +22,7 @@ var (
 
 func main() {
 	// parse flags
-	flag.IntVar(&numServices, "num_services", numServices, "the number of active services generate load for")
+	flag.IntVar(&numServices, "num_services", 0, "the number of active services generate load for")
 	flag.IntVar(&numPublishRequests, "num_publishes", numPublishRequests, "the number of publish requests to generate per client")
 	flag.IntVar(&numFetchRequests, "num_fetches", numFetchRequests, "the number of fetch requests to generate per client")
 	flag.IntVar(&numDeleteRequests, "num_deletes", numDeleteRequests, "the number of delete requests to generate per client")
@@ -68,7 +68,7 @@ func main() {
 	}
 
 	totalRequests := (numFetchRequests + numPublishRequests + numDeleteRequests) * numServices
-	log.Printf("completed %d in %s", totalRequests, time.Since(startTime))
+	log.Printf("completed %d requests in %s", totalRequests, time.Since(startTime))
 }
 
 func startFetching(client *client.KVClient, eg *errgroup.Group) {

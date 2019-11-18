@@ -34,18 +34,20 @@ func main() {
 
 	reader := bufio.NewReader(os.Stdin)
 	for {
-		fmt.Print("> publish, fetch or delete (i.e. publish key value): ")
+		fmt.Print("> publish, fetch, delete or subscribe (i.e. publish key value): ")
 		text, err := reader.ReadString('\n')
 		if err != nil {
 			fmt.Printf("failed to read from stdin: %s\n", err)
 			return
 		}
 
-		items := strings.Split(text, " ")
+		// split command into components
+		items := strings.Split(strings.TrimSpace(text), " ")
 		if len(items) < 2 {
 			continue
 		}
 
+		// remove prefixed/suffixed white space for each component
 		for i := range items {
 			items[i] = strings.TrimSpace(items[i])
 		}
@@ -89,7 +91,7 @@ func main() {
 					break
 				}
 				val := strings.TrimSpace(string(resp.Value))
-				fmt.Printf("subscription read for %s: %s @ %d\n", items[1], val, resp.Timestamp)
+				fmt.Printf("subscription read for %s: %s (%d)\n", items[1], val, resp.Timestamp)
 			}
 			fmt.Println("subscription ended")
 
