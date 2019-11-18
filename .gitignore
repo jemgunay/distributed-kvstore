@@ -1,3 +1,5 @@
+.idea
+
 server/cmd/server/server
 client/cmd/client-tool/client-tool
 client/cmd/raw-examples/raw-examples
