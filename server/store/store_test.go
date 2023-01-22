@@ -5,8 +5,6 @@ import (
 	"sync"
 	"testing"
 	"time"
-
-	pb "github.com/jemgunay/distributed-kvstore/proto"
 )
 
 func TestStore_Put(t *testing.T) {
@@ -22,7 +20,6 @@ func TestStore_Put(t *testing.T) {
 	}
 
 	store := NewStore()
-	store.StartPoller()
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -34,19 +31,15 @@ func TestStore_Put(t *testing.T) {
 }
 
 func TestStore_PutBufferFull(t *testing.T) {
-	// don't start poller - request channel should fill up and finally return an ErrPollerBufferFull error on Put()
+	// don't start poller - request channel should fill up and finally return an ErrStoreBackpressure error on Put()
 	store := NewStore()
-	store.getReqChan = make(chan *getReq, store.RequestChanBufSize)
-	store.insertReqChan = make(chan *insertReq, store.RequestChanBufSize)
-	store.syncRequestFeedChan = make(chan *pb.SyncMessage, store.SyncRequestFeedChanBufSize)
-	store.unsubscribeChan = make(chan subscription, store.SyncRequestFeedChanBufSize)
 
 	catValue := []byte("cat")
 	catTimestamp := time.Now().UTC().UnixNano()
 
 	// ensure store request buffer is full before attempting to overflow channel buffer
 	wg := sync.WaitGroup{}
-	for i := 0; i < int(store.RequestChanBufSize); i++ {
+	for i := 0; i < int(1<<10); i++ {
 		wg.Add(1)
 		go func() {
 			wg.Done()
@@ -58,14 +51,13 @@ func TestStore_PutBufferFull(t *testing.T) {
 	wg.Wait()
 	time.Sleep(time.Millisecond * 500)
 
-	if err := store.Put("animal", catValue, catTimestamp); err != ErrPollerBufferFull {
-		t.Fatalf("failed to put cat, got: %s, expected: %s", err, ErrPollerBufferFull)
+	if err := store.Put("animal", catValue, catTimestamp); err != ErrStoreBackpressure {
+		t.Fatalf("failed to put cat, got: %s, expected: %s", err, ErrStoreBackpressure)
 	}
 }
 
 func TestStore_Get(t *testing.T) {
 	store := NewStore()
-	store.StartPoller()
 
 	// attempt to get something that doesn't exist in the store
 	value, ts, err := store.Get("animal")
@@ -93,7 +85,6 @@ func TestStore_Get(t *testing.T) {
 
 func TestStore_Delete(t *testing.T) {
 	store := NewStore()
-	store.StartPoller()
 
 	// attempt to get something that doesn't exist in the store
 	if _, _, err := store.Get("animal"); err != ErrNotFound {

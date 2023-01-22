@@ -25,7 +25,7 @@ func main() {
 	fmt.Printf("connecting to server on port %d\n", port)
 	c, err := client.NewKVClient(":" + strconv.Itoa(port))
 	if err != nil {
-		fmt.Printf("failed to create client: %s", err)
+		fmt.Printf("failed to create client: %w", err)
 		return
 	}
 	defer c.Close()
@@ -34,18 +34,19 @@ func main() {
 
 	reader := bufio.NewReader(os.Stdin)
 	for {
-		fmt.Print("> publish, fetch or delete (i.e. publish key value): ")
+		fmt.Print("> publish, fetch, delete or subscribe (e.g. publish key value): ")
 		text, err := reader.ReadString('\n')
 		if err != nil {
 			fmt.Printf("failed to read from stdin: %s\n", err)
 			return
 		}
 
-		items := strings.Split(text, " ")
+		items := strings.Split(strings.TrimSpace(text), " ")
 		if len(items) < 2 {
 			continue
 		}
 
+		// remove prefixed/suffixed white space for each component
 		for i := range items {
 			items[i] = strings.TrimSpace(items[i])
 		}
@@ -92,9 +93,6 @@ func main() {
 				fmt.Printf("subscription read for %s: %s @ %d\n", items[1], val, resp.Timestamp)
 			}
 			fmt.Println("subscription ended")
-
-		default:
-			continue
 		}
 	}
 }

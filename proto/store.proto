@@ -1,33 +1,42 @@
 syntax = "proto3";
 
 package kv;
+option go_package = "./proto;kv";
 
+// KVStore implements the key/value store operations.
 service KVStore {
-    rpc Publish (PublishRequest) returns (Empty);
-    rpc Fetch (FetchRequest) returns (FetchResponse);
-    rpc Delete (DeleteRequest) returns (Empty);
-    rpc Subscribe (FetchRequest) returns (stream FetchResponse);
+  // Publish updates a key/value pair in the store, along with triggering any required sync operations.
+  rpc Publish (PublishRequest) returns (Empty);
+  // Fetch fetches the value for a given key from the store.
+  rpc Fetch (FetchRequest) returns (FetchResponse);
+  // Delete deletes a key from the store.
+  rpc Delete (DeleteRequest) returns (Empty);
+  // Subscribe provides a stream of updates (driven by Publish calls) to a given subscriber.
+  rpc Subscribe (FetchRequest) returns (stream FetchResponse);
 }
 
+// Empty represents an empty response.
 message Empty {}
 
-// Publish
+// PublishRequest is the request for a Publish operation.
 message PublishRequest {
-    string key = 1;
-    bytes value = 2;
+  string key = 1;
+  bytes value = 2;
 }
 
-// Fetch
+// PublishRequest is the request for a Fetch operation.
 message FetchRequest {
-    string key = 1;
+  string key = 1;
 }
 
+// FetchResponse is the response for a Fetch operation, containing the value for the requested key and the timestamp
+// that the key was last updated.
 message FetchResponse {
-    bytes value = 1;
-    int64 timestamp = 2;
+  bytes value = 1;
+  int64 timestamp = 2;
 }
 
-// Delete
+// DeleteRequest is the request for a Delete operation.
 message DeleteRequest {
-    string key = 1;
+  string key = 1;
 }

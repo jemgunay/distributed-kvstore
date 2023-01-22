@@ -2,7 +2,7 @@
 
 [![CircleCI](https://circleci.com/gh/jemgunay/distributed-kvstore/tree/master.svg?style=svg)](https://circleci.com/gh/jemgunay/distributed-kvstore/tree/master)
 
-A basic eventually consistent distributed key-value store written in Golang. Supports the storage of arbitrary byte values and resolves sync conflicts across nodes. Utilises gRPC and protocol buffers to expose a performant language-neutral interface. Multiple client examples are also included.
+A basic eventually consistent distributed key-value store written in Golang. Supports the storage of arbitrary byte values and resolves sync conflicts across nodes. Utilises gRPC and protocol buffers to expose a performant language-agnostic interface. Multiple client examples are also included.
 
 ## Creating Server Nodes
 

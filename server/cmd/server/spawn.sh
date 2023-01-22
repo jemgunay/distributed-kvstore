@@ -17,10 +17,10 @@ if [[ $? != 0 ]]; then
 fi
 
 # kill existing services
-for i in $(seq 1 ${NUM_SERVICES}); do
-    port_num=$((7000 + ${i}))
-    fuser -k ${port_num}/tcp
-done
+#for i in $(seq 1 ${NUM_SERVICES}); do
+#    port_num=$((7000 + ${i}))
+#    fuser -k ${port_num}/tcp
+#done
 
 for i in $(seq 1 ${NUM_SERVICES}); do
     # build node_address flags

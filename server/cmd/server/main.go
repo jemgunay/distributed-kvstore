@@ -5,6 +5,7 @@ import (
 	"flag"
 	"fmt"
 	"log"
+	"os"
 	"strconv"
 
 	"github.com/jemgunay/distributed-kvstore/server"
@@ -20,17 +21,17 @@ func main() {
 	// parse flags
 	flag.IntVar(&port, "port", port, "the port this server should serve from")
 	flag.Var(&nodesAddresses, "node_address", "list of node addresses that this node should attempt to synchronise with")
-	debugLogsEnabled := flag.Bool("logs_enabled", false, "whether debug logs should be enabled")
+	debugLogsEnabled := flag.Bool("logs_enabled", true, "whether debug logs should be enabled")
 	flag.Parse()
 
 	// create a store and kvServer
 	kvStore := store.NewStore()
-	kvStore.StartPoller()
 	kvServer := server.NewKVSyncServer(kvStore, kvStore)
+	// TODO: replace with zap
 	kvServer.DebugLog = *debugLogsEnabled
 
 	// start serving
-	log.Printf("KV server listening on port %d", port)
+	log.Printf("KV server (pid %d) listening on port %d", os.Getpid(), port)
 	if err := kvServer.Start(":"+strconv.Itoa(port), nodesAddresses); err != nil {
 		log.Printf("KV server has shut down unexpectedly: %s", err)
 		return

@@ -1,173 +1,170 @@
-// Package store implements a serialised access KV store. Each record is composed of a list of operations so that
-// synchronising across nodes can be achieved whilst maintaining the order of operations, preventing data loss.
+// Package store implements a serialised access KV store. Each record is composed of a list of latestOp so that
+// synchronising across nodes can be achieved whilst maintaining the order of latestOp, preventing data loss.
 package store
 
 import (
+	"bytes"
+	"context"
 	"errors"
-	"sort"
+	"sync/atomic"
 
 	"github.com/OneOfOne/xxhash"
-	"golang.org/x/net/context"
 
 	pb "github.com/jemgunay/distributed-kvstore/proto"
+	"github.com/jemgunay/distributed-kvstore/server"
 )
 
 // represents a key/value record in the store
 type record struct {
-	key        string
-	operations []*operation
-}
-
-// returns the latest operation stored in a record
-func (r record) latestOperation() *operation {
-	if len(r.operations) == 0 {
-		return nil
-	}
-	return r.operations[len(r.operations)-1]
-}
-
-// operation represents a request to update or delete a record - these are used to maintain the order of incoming
-// operations to prevent data loss resulting from the processing of incorrectly ordered requests
-type operation struct {
-	opType    pb.OperationType
-	data      []byte
+	key       string
+	value     []byte
 	timestamp int64
-	// used to determine which nodes this operation has synchronised across
-	nodeSYNCoverage uint64
-	nodeACKCoverage uint64
+	operation pb.OperationVariant
 }
 
 type subscription struct {
 	key    string
 	id     uint64
-	ch     chan *pb.FetchResponse
-	cancel context.CancelFunc
+	stream chan *pb.FetchResponse
+	ctx    context.Context
 }
 
-// Store is a operation based KV store to facilitate a distributed server implementation.
+var (
+	_ server.Storer      = (*Store)(nil)
+	_ server.SyncSourcer = (*Store)(nil)
+)
+
+// Store is an operation-based KV store to facilitate a distributed server implementation.
 type Store struct {
 	// the key is the hashed key and the value is the data record
-	store map[uint64]*record
+	store map[uint64]record
 
-	subscriptions      map[string]map[uint64]subscription
+	// map[key]map[subscriber-id]subscription
+	subscriptions map[string]map[uint64]subscription
+	// nextSubscriptionID is atomically incremented
 	nextSubscriptionID uint64
 
-	// RequestChanBufSize is the size of each of the store poller request channel buffers. Set this before calling
-	// StartPoller() as this is where the channels are created.
-	RequestChanBufSize int64
-	// SyncRequestFeedChanBufSize is the size of sync request channel buffer. Set this before calling StartPoller() as
-	// this is where the channels are created.
-	SyncRequestFeedChanBufSize int64
-
 	// channels used to serialise access to the store via the store request poller
-	getReqChan          chan *getReq
-	insertReqChan       chan *insertReq
-	syncRequestFeedChan chan *pb.SyncMessage
-	unsubscribeChan     chan subscription
+	requestChanBufSize   int64
+	getReqQueue          chan getReq
+	modifyReqQueue       chan modifyReq
+	subscribeQueue       chan subscription
+	syncRequestFeedQueue chan *pb.SyncMessage
 }
 
 // NewStore initialises and returns a new KV store.
 func NewStore() *Store {
-	return &Store{
-		store:                      map[uint64]*record{},
-		subscriptions:              make(map[string]map[uint64]subscription),
-		RequestChanBufSize:         1 << 10, // 1024
-		SyncRequestFeedChanBufSize: 1 << 10, // 1024
+	// TODO: opt these
+	// requestChanBufSize is the size of each of the store poller request channel buffers.
+	const requestChanBufSize = int64(1 << 10) // 1024
+	// syncRequestFeedChanBufSize is the size of sync request channel buffer.
+	const syncRequestFeedChanBufSize = int64(1 << 12) // 4096
+
+	s := &Store{
+		store:                make(map[uint64]record, 100),
+		requestChanBufSize:   requestChanBufSize,
+		subscriptions:        make(map[string]map[uint64]subscription),
+		getReqQueue:          make(chan getReq, requestChanBufSize),
+		modifyReqQueue:       make(chan modifyReq, requestChanBufSize),
+		subscribeQueue:       make(chan subscription, requestChanBufSize),
+		syncRequestFeedQueue: make(chan *pb.SyncMessage, syncRequestFeedChanBufSize),
 	}
+	go s.startPoller()
+	return s
 }
 
 var (
 	// ErrNotFound indicates that the provided key does not exist in the store.
 	ErrNotFound = errors.New("key not found in store")
-	// ErrInvalidKey indicates that an invalid key (likely an empty string) was provided.
+	// ErrInvalidKey indicates that the provided key was empty.
 	ErrInvalidKey = errors.New("invalid key provided")
-	// ErrPollerBufferFull indicates that the poller channel buffer is full and cannot consume new requests.
-	ErrPollerBufferFull = errors.New("request failed as poller channel buffer is full")
+	// ErrStoreBackpressure indicates that there is backpressure on the poller channel buffer, so it cannot consume new
+	// requests.
+	ErrStoreBackpressure = errors.New("request failed as there is backpressure on the store queue")
 )
 
 // Get retrieves a record's value from the store, as well as the timestamp the last update occurred at.
 func (s *Store) Get(key string) (value []byte, timestamp int64, err error) {
-	req := &getReq{
+	req := getReq{
 		key:    key,
-		respCh: make(chan getResp),
+		respCh: make(chan getResp, 1),
 	}
 	// if buffer is full, fail request with error
 	select {
-	case s.getReqChan <- req:
+	case s.getReqQueue <- req:
 		resp := <-req.respCh
 		return resp.data, resp.timestamp, resp.err
 	default:
-		return nil, 0, ErrPollerBufferFull
+		return nil, 0, ErrStoreBackpressure
 	}
 }
 
-// called by the poller to serialise get request operations on the store map
+// called by the poller to serialise get request latestOp on the store map
 func (s *Store) performGetOperation(key string) getResp {
 	if key == "" {
 		return getResp{err: ErrInvalidKey}
 	}
 
-	// get hash of key
 	hash, err := hashKey(key)
 	if err != nil {
 		return getResp{err: err}
 	}
 
-	// retrieve value from map
 	record, ok := s.store[hash]
 	if !ok {
 		return getResp{err: ErrNotFound}
 	}
 
 	// determine if record was deleted on last operation
-	lastOp := record.latestOperation()
-	if lastOp.opType == pb.OperationType_DELETE {
+	if record.operation == pb.OperationVariant_DELETE {
 		return getResp{err: ErrNotFound}
 	}
 
-	return getResp{data: lastOp.data, timestamp: lastOp.timestamp}
+	return getResp{
+		data:      record.value,
+		timestamp: record.timestamp,
+	}
 }
 
 // Put either creates a new record or amends the state of an existing record in the store.
 func (s *Store) Put(key string, value []byte, timestamp int64) error {
-	req := &insertReq{
-		key:           key,
-		value:         value,
-		timestamp:     timestamp,
-		operationType: pb.OperationType_UPDATE,
-		performSync:   true,
-		respCh:        make(chan error),
+	req := modifyReq{
+		key:         key,
+		value:       value,
+		timestamp:   timestamp,
+		operation:   pb.OperationVariant_UPDATE,
+		performSync: true,
+		respCh:      make(chan error, 1),
 	}
 	// if buffer is full, fail request with error
 	select {
-	case s.insertReqChan <- req:
+	case s.modifyReqQueue <- req:
 		return <-req.respCh
 	default:
-		return ErrPollerBufferFull
+		return ErrStoreBackpressure
 	}
 }
 
-// Delete performs a store record deletion and triggers a sync request upon successful deletion. An error will be
-// returned if
+// Delete performs a store record deletion and triggers a sync request upon successful deletion.
 func (s *Store) Delete(key string, timestamp int64) error {
-	req := &insertReq{
-		key:           key,
-		timestamp:     timestamp,
-		operationType: pb.OperationType_DELETE,
-		performSync:   true,
-		respCh:        make(chan error),
+	req := modifyReq{
+		key:         key,
+		timestamp:   timestamp,
+		operation:   pb.OperationVariant_DELETE,
+		performSync: true,
+		respCh:      make(chan error, 1),
 	}
 	// if buffer is full, fail request with error
 	select {
-	case s.insertReqChan <- req:
+	case s.modifyReqQueue <- req:
 		return <-req.respCh
 	default:
-		return ErrPollerBufferFull
+		return ErrStoreBackpressure
 	}
 }
 
-// called by the poller to serialise update and delete request operations on the store map
-func (s *Store) performInsertOperation(req *insertReq) error {
+// called by the poller to serialise update and delete request latestOp on the store map
+func (s *Store) performModifyOperation(req modifyReq) error {
 	if req.key == "" {
 		return ErrInvalidKey
 	}
@@ -175,75 +172,95 @@ func (s *Store) performInsertOperation(req *insertReq) error {
 	// get hash of key
 	hash, err := hashKey(req.key)
 	if err != nil {
-		return err
-	}
-
-	// construct new operation record
-	newOp := &operation{
-		opType:          req.operationType,
-		data:            req.value,
-		timestamp:       req.timestamp,
-		nodeSYNCoverage: 1,
-		nodeACKCoverage: 1,
+		return err // TODO: better error log
 	}
 
 	// attempt to retrieve existing value from map
-	r, ok := s.store[hash]
-	if !ok {
-		// if there is no existing record, create a new one
-		r = &record{
-			operations: []*operation{newOp},
+	rec, ok := s.store[hash]
+	if ok {
+		if req.timestamp <= rec.timestamp {
+			// we've received a stale message, we can ignore the request
+			return nil
 		}
-	} else {
-		// if record exists, append new operation order operations by timestamp (if there is more than one operation)
-		// TODO: insert in order instead of sorting for every operation
-		r.operations = append(r.operations, newOp)
-
-		sort.Slice(r.operations, func(i, j int) bool {
-			return r.operations[i].timestamp < r.operations[j].timestamp
-		})
+		if req.operation == rec.operation && req.key == rec.key && bytes.Equal(req.value, rec.value) {
+			// nothing has changed, we can ignore the request
+			return nil
+		}
 	}
 
-	r.key = req.key
-	s.store[hash] = r
+	// if there is no existing record, create a new one
+	s.store[hash] = record{
+		key:       req.key,
+		value:     req.value,
+		timestamp: req.timestamp,
+		operation: req.operation,
+	}
 
 	if req.performSync {
-		// place sync request into feed channel so that the server can propagate this request to other nodes
-		s.syncRequestFeedChan <- &pb.SyncMessage{
+		// place sync request into sync feed queue (for non-sync requests only) so that the server can propagate this
+		// request to other nodes
+		s.syncRequestFeedQueue <- &pb.SyncMessage{
 			Key:       req.key,
 			Value:     req.value,
 			Timestamp: req.timestamp,
-
-			OperationType: req.operationType,
-			SyncType:      pb.SyncType_SYN,
+			Operation: req.operation,
 		}
 	}
 
 	return nil
 }
 
-// SyncOut provides a way for the consumer to collect a stream of sync messages to be forwarded onto other nodes.
-func (s *Store) SyncOut() *pb.SyncMessage {
-	return <-s.syncRequestFeedChan
+// Subscribe hooks into the store to listen for insert requests from other nodes or clients. These are then forwarded
+// on to the consumer via the response channel. TODO: redo this - The cancel func will deregister the subscription listener and gracefully
+// clean up references in the store.
+func (s *Store) Subscribe(ctx context.Context, key string) (chan *pb.FetchResponse, error) {
+	newID := atomic.AddUint64(&s.nextSubscriptionID, 1)
+	newSub := subscription{
+		key: key,
+		id:  newID,
+		ctx: ctx,
+		// create the channel for pushing updates to the subscriber
+		stream: make(chan *pb.FetchResponse, s.requestChanBufSize),
+	}
+
+	select {
+	case s.subscribeQueue <- newSub:
+		return newSub.stream, nil
+	default:
+		return nil, ErrStoreBackpressure
+	}
+}
+
+func (s *Store) registerSubscription(sub subscription) {
+	if s.subscriptions[sub.key] == nil {
+		s.subscriptions[sub.key] = make(map[uint64]subscription, 1)
+	}
+
+	s.subscriptions[sub.key][sub.id] = sub
+}
+
+// GetSyncStream returns the store's sync stream channel.
+func (s *Store) GetSyncStream() <-chan *pb.SyncMessage {
+	return s.syncRequestFeedQueue
 }
 
 // SyncIn creates a store insert request which will be consumed by the store poller, serialising access to the store's
 // map. Unlike Put and Delete, this operation will not produce a sync request to other nodes.
-func (s *Store) SyncIn(syncMsg *pb.SyncMessage) (err error) {
-	req := &insertReq{
-		key:           syncMsg.Key,
-		value:         syncMsg.Value,
-		timestamp:     syncMsg.Timestamp,
-		operationType: syncMsg.OperationType,
-		performSync:   false,
-		respCh:        make(chan error),
+func (s *Store) SyncIn(syncMsg *pb.SyncMessage) error {
+	req := modifyReq{
+		key:         syncMsg.Key,
+		value:       syncMsg.Value,
+		timestamp:   syncMsg.Timestamp,
+		operation:   syncMsg.Operation,
+		performSync: false,
+		respCh:      make(chan error, 1),
 	}
 	// if buffer is full, fail request with error
 	select {
-	case s.insertReqChan <- req:
+	case s.modifyReqQueue <- req:
 		return <-req.respCh
 	default:
-		return ErrPollerBufferFull
+		return ErrStoreBackpressure
 	}
 }
 
@@ -258,8 +275,8 @@ func hashKey(key string) (uint64, error) {
 
 // Shutdown gracefully shuts down the store poller.
 func (s *Store) Shutdown() {
-	// TODO: test this
-	close(s.getReqChan)
-	close(s.insertReqChan)
-	close(s.syncRequestFeedChan)
+	// TODO: test this + ensure everything has drained in correct sequence before we return
+	close(s.getReqQueue)
+	close(s.modifyReqQueue)
+	close(s.syncRequestFeedQueue)
 }

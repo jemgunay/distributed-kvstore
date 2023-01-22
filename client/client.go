@@ -15,7 +15,10 @@ import (
 	pb "github.com/jemgunay/distributed-kvstore/proto"
 )
 
-// KVClient is a gRPC KV client which satisfies the KVServiceClient interface.
+// TODO: interface assert this
+// var _ = (*KVClient)(nil)
+
+// KVClient is a gRPC KV client.
 type KVClient struct {
 	*grpc.ClientConn
 	ServiceClient pb.KVStoreClient
@@ -27,7 +30,7 @@ type KVClient struct {
 func NewKVClient(address string) (*KVClient, error) {
 	conn, err := grpc.Dial(address, grpc.WithInsecure())
 	if err != nil {
-		return nil, fmt.Errorf("failed to connect to server: %s", err)
+		return nil, fmt.Errorf("failed to connect to server: %w", err)
 	}
 
 	return &KVClient{
@@ -38,8 +41,8 @@ func NewKVClient(address string) (*KVClient, error) {
 }
 
 // Publish performs a publish request over gRPC in order to publish a key/value pair.
-func (c *KVClient) Publish(key string, value interface{}) error {
-	c.Printf("[publish] %s -> %+v", key, value)
+func (c *KVClient) Publish(key string, value any) error {
+	c.Printf("[publish] %s -> %#v", key, value)
 
 	ctx, cancel := context.WithTimeout(context.Background(), c.Timeout)
 	defer cancel()
@@ -48,7 +51,7 @@ func (c *KVClient) Publish(key string, value interface{}) error {
 	buf := &bytes.Buffer{}
 	encoder := gob.NewEncoder(buf)
 	if err := encoder.Encode(value); err != nil {
-		return fmt.Errorf("failed to gob encode value: %s", err)
+		return fmt.Errorf("failed to gob encode value: %w", err)
 	}
 
 	req := pb.PublishRequest{
@@ -58,14 +61,14 @@ func (c *KVClient) Publish(key string, value interface{}) error {
 
 	// perform publish request
 	if _, err := c.ServiceClient.Publish(ctx, &req); err != nil {
-		return fmt.Errorf("failed to publish: %s", err)
+		return fmt.Errorf("failed to publish: %w", err)
 	}
 
 	return nil
 }
 
 // Fetch performs a fetch request over gRPC in order to retrieve the value that corresponds with the specified key.
-func (c *KVClient) Fetch(key string, value interface{}) (int64, error) {
+func (c *KVClient) Fetch(key string, value any) (int64, error) {
 	c.Printf("[fetch] %s", key)
 
 	ctx, cancel := context.WithTimeout(context.Background(), c.Timeout)
@@ -78,14 +81,14 @@ func (c *KVClient) Fetch(key string, value interface{}) (int64, error) {
 	// perform fetch request
 	resp, err := c.ServiceClient.Fetch(ctx, &req)
 	if err != nil {
-		return 0, fmt.Errorf("failed to fetch: %s", err)
+		return 0, fmt.Errorf("failed to fetch: %w", err)
 	}
 
 	// gob decode bytes into specified type
 	buf := bytes.NewReader(resp.Value)
 	decoder := gob.NewDecoder(buf)
 	if err := decoder.Decode(value); err != nil {
-		return 0, fmt.Errorf("failed to gob decode value: %s", err)
+		return 0, fmt.Errorf("failed to gob decode value: %w", err)
 	}
 
 	return resp.Timestamp, nil
@@ -104,7 +107,7 @@ func (c *KVClient) Delete(key string) error {
 
 	// perform fetch request
 	if _, err := c.ServiceClient.Delete(ctx, &req); err != nil {
-		return fmt.Errorf("failed to delete: %s", err)
+		return fmt.Errorf("failed to delete: %w", err)
 	}
 
 	return nil
@@ -121,18 +124,18 @@ func (c *KVClient) Subscribe(key string) (chan *pb.FetchResponse, context.Cancel
 	// subscribe to changes for the specified key
 	stream, err := c.ServiceClient.Subscribe(ctx, &pb.FetchRequest{Key: key})
 	if err != nil {
-		return nil, cancel, fmt.Errorf("failed to subscribe to %s: %s", key, err)
+		return nil, cancel, fmt.Errorf("failed to subscribe to %s: %w", key, err)
 	}
 
 	ch := make(chan *pb.FetchResponse)
 	go func() {
-		// retrieve stream of responses - calling cancel will break out of this loop, triggering the clean up below
+		// retrieve stream of responses - calling cancel will break out of this loop, triggering the cleanup below
 		for {
 			item, err := stream.Recv()
-			if err == io.EOF {
-				break
-			}
 			if err != nil {
+				if err == io.EOF {
+					break
+				}
 				c.Printf("failed to read from %s subscription: %s", key, err)
 				break
 			}
@@ -152,7 +155,7 @@ func (c *KVClient) Subscribe(key string) (chan *pb.FetchResponse, context.Cancel
 }
 
 // Printf wraps log.Printf() to only write logs if logging is enabled.
-func (c *KVClient) Printf(format string, v ...interface{}) {
+func (c *KVClient) Printf(format string, v ...any) {
 	if !c.DebugLog {
 		return
 	}

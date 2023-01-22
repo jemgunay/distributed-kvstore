@@ -35,7 +35,7 @@ func main() {
 	// publish some records
 	data := []struct {
 		key   string
-		value interface{}
+		value any
 	}{
 		{"animals", []string{"dog", "cat", "hippo"}},
 		{"misc_data", "this is a string of random data"},
