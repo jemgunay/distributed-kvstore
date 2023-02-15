@@ -16,19 +16,19 @@
 - Dockerise startup
 - Zap logger
 - Bubbletea/cobra for tasty CLI?
-- Require ctx for API methods
+- Require ctx for API methods for read cancellations
 - Bringing a node out of the network and introducing new ones.
   - Auto discovery, given port range?
 - Configurable store/server/client with opts
-- Require pkg for tests
-- Implementation details section in readme
 - Use time.Time instead of timestamp at API-level - epoch for internal comms
 - Status endpoints, returns health/queue backpressure + queue capacity  
   - Monitor service to probe status of nodes. Visualise which nodes/keys are out of sync
   - Subscriber backpressure
 - Prevent subscription to a key that does not exist? Aligns with delete triggering an unsub 
 - Document 
+  - Implementation details section in readme
   - key must be defined
   - blob-ing
     - gzip big payloads? optional config?
   - timestamp dependent, clock drift will break stuff
+- clean up delete messages after X period of time of not having an update for that key

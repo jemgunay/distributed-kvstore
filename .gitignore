@@ -1,4 +1,4 @@
-server/cmd/server/server
-client/cmd/client-tool/client-tool
-client/cmd/raw-examples/raw-examples
-client/cmd/generate-load/generate-load
+cmd/server/server
+cmd/clients/cli/cli
+cmd/clients/raw-examples/raw-examples
+cmd/clients/generate-load/generate-load
