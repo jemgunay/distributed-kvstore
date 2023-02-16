@@ -7,23 +7,22 @@ import (
 	"flag"
 	"fmt"
 	"os"
-	"strconv"
 	"strings"
 
 	"github.com/jemgunay/distributed-kvstore/pkg/client"
 )
 
-var port = 7000
+var addr = "localhost:7000"
 
 func main() {
 	// parse flags
-	flag.IntVar(&port, "port", port, "the target server's port")
+	flag.StringVar(&addr, "addr", addr, "the target server's address")
 	debugLogsEnabled := flag.Bool("logs_enabled", false, "whether debug logs should be enabled")
 	flag.Parse()
 
 	// connect to gRPC server
-	fmt.Printf("connecting to server on port %d\n", port)
-	c, err := client.NewKVClient(":" + strconv.Itoa(port))
+	fmt.Printf("connecting to server on %s\n", addr)
+	c, err := client.NewKVClient(addr)
 	if err != nil {
 		fmt.Printf("failed to create client: %s", err)
 		return

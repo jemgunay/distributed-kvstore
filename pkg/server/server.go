@@ -196,7 +196,6 @@ func (s *Server) Sync(stream pb.KVStore_SyncServer) error {
 	for {
 		// receive a stream of sync requests from another node
 		resp, err := stream.Recv()
-		s.logger.Info("sync_in stream recv", zap.Error(err))
 		if err != nil {
 			if err == io.EOF {
 				break

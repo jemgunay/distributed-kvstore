@@ -9,3 +9,10 @@
 generate:
 	protoc --go_out=./pkg --go-grpc_out=. --go-grpc_opt=paths=source_relative pkg/proto/*.proto
 
+.PHONY: docker-build
+docker-build:
+	docker build -t kv-server . --target runner
+
+.PHONY: docker-run
+docker-run:
+	docker run -p 7000:7000 kv-server

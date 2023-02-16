@@ -30,7 +30,7 @@ type Config struct {
 }
 
 func New() Config {
-	port := flag.Int("port", 6000, "the port this server should serve from")
+	port := flag.Int("port", 7000, "the port this server should serve from")
 	debug := flag.Bool("debug", false, "enable debug logs")
 	var nodesAddresses multiFlag
 	flag.Var(&nodesAddresses, "node_address", "list of node addresses that this node should attempt to synchronise with")
