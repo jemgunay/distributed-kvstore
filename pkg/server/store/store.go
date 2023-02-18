@@ -3,7 +3,6 @@
 package store
 
 import (
-	"bytes"
 	"context"
 	"errors"
 	"sync/atomic"
@@ -84,7 +83,7 @@ var (
 )
 
 // Get retrieves a record's value from the store, as well as the timestamp the last update occurred at.
-func (s *Store) Get(key string) (value []byte, timestamp int64, err error) {
+func (s *Store) Get(key string) ([]byte, int64, error) {
 	req := getReq{
 		key:    key,
 		respCh: make(chan getResp, 1),
@@ -173,10 +172,6 @@ func (s *Store) performModifyOperation(req modifyReq) error {
 			// we've received a stale message, we can ignore the request
 			return nil
 		}
-		if req.operation == rec.operation && req.key == rec.key && bytes.Equal(req.value, rec.value) {
-			// nothing has changed, we can ignore the request
-			return nil
-		}
 	}
 
 	// if there is no existing record, create a new one
@@ -239,10 +234,10 @@ func (s *Store) GetSyncStream() <-chan *pb.SyncMessage {
 // map. Unlike Put and Delete, this operation will not produce a sync request to other nodes.
 func (s *Store) SyncIn(syncMsg *pb.SyncMessage) error {
 	req := modifyReq{
-		key:         syncMsg.Key,
-		value:       syncMsg.Value,
-		timestamp:   syncMsg.Timestamp,
-		operation:   syncMsg.Operation,
+		key:         syncMsg.GetKey(),
+		value:       syncMsg.GetValue(),
+		timestamp:   syncMsg.GetTimestamp(),
+		operation:   syncMsg.GetOperation(),
 		performSync: false,
 		respCh:      make(chan error, 1),
 	}

@@ -35,8 +35,8 @@ func (s *Store) startPoller() {
 			req.respCh <- s.performGetOperation(req.key)
 
 		case req := <-s.modifyReqQueue:
-			result := s.performModifyOperation(req)
-			req.respCh <- result
+			err := s.performModifyOperation(req)
+			req.respCh <- err
 
 			s.fanOutSubscriptions(req)
 
@@ -74,7 +74,7 @@ func (s *Store) fanOutSubscriptions(req modifyReq) {
 
 	// push the request to each subscriber of that key
 	for _, sub := range s.subscriptions[req.key] {
-		// TODO: document this feature:
+		// TODO: document this feature, or make it optional:
 		// kill subscription if insert request was a delete request
 		if req.operation == pb.OperationVariant_DELETE {
 			close(sub.stream)

@@ -1,0 +1,35 @@
+version: "3.9"
+networks:
+  kvs-net:
+    driver: bridge
+
+services:
+  kv-server-one:
+    build: .
+    container_name: kvs-one
+    ports:
+      - "7001:7000"
+    environment:
+      NODE_ADDRESSES: "kvs-two:7000,kvs-three:7000"
+    networks:
+      - kvs-net
+
+  kv-server-two:
+    build: .
+    container_name: kvs-two
+    ports:
+      - "7002:7000"
+    environment:
+      NODE_ADDRESSES: "kvs-one:7000,kvs-three:7000"
+    networks:
+      - kvs-net
+
+  kv-server-three:
+    build: .
+    container_name: kvs-three
+    ports:
+      - "7003:7000"
+    environment:
+      NODE_ADDRESSES: "kvs-one:7000,kvs-two:7000"
+    networks:
+      - kvs-net

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"strings"
 
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
@@ -24,16 +25,23 @@ func (m *multiFlag) Set(value string) error {
 }
 
 type Config struct {
-	HTTPPort      int
+	Hostname      string
+	Port          int
 	NodeAddresses []string
 	Logger
 }
 
 func New() Config {
-	port := flag.Int("port", 7000, "the port this server should serve from")
 	debug := flag.Bool("debug", false, "enable debug logs")
+	port := flag.Int("port", 7000, "the port this server should serve from")
+
 	var nodesAddresses multiFlag
-	flag.Var(&nodesAddresses, "node_address", "list of node addresses that this node should attempt to synchronise with")
+	if addrs := os.Getenv("NODE_ADDRESSES"); addrs != "" {
+		nodesAddresses = strings.Split(addrs, ",")
+	} else {
+		flag.Var(&nodesAddresses, "node_address", "list of node addresses that this node should attempt to synchronise with")
+	}
+
 	flag.Parse()
 
 	logLevel := zapcore.InfoLevel
@@ -42,7 +50,7 @@ func New() Config {
 	}
 
 	return Config{
-		HTTPPort:      *port,
+		Port:          *port,
 		NodeAddresses: nodesAddresses,
 		Logger:        newLogger(logLevel),
 	}

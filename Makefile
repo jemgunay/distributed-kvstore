@@ -15,4 +15,4 @@ docker-build:
 
 .PHONY: docker-run
 docker-run:
-	docker run -p 7000:7000 kv-server
+	docker compose up --build

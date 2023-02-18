@@ -18,7 +18,7 @@ func main() {
 
 	// create a store and kvServer
 	kvStore := store.NewStore()
-	nodeManager, err := nodes.New(logger, cfg.HTTPPort, cfg.NodeAddresses)
+	nodeManager, err := nodes.New(logger, cfg.Port, cfg.NodeAddresses)
 	if err != nil {
 		logger.Error("failed to init node manager", zap.Error(err))
 		os.Exit(1)
@@ -26,8 +26,8 @@ func main() {
 	kvServer := server.NewServer(logger, kvStore, nodeManager)
 
 	// start serving
-	logger.Info("starting HTTP server", zap.Int("pid", os.Getpid()), zap.Int("port", cfg.HTTPPort))
-	if err := kvServer.Start(cfg.HTTPPort); err != nil {
+	logger.Info("starting HTTP server", zap.Int("pid", os.Getpid()), zap.Int("port", cfg.Port))
+	if err := kvServer.Start(cfg.Port); err != nil {
 		logger.Error("HTTP server shut down unexpectedly", zap.Error(err))
 		os.Exit(1)
 	}

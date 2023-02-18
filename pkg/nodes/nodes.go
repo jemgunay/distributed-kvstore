@@ -4,48 +4,48 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"strconv"
 	"sync"
 	"time"
 
-	petname "github.com/dustinkirkland/golang-petname"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 
 	"github.com/jemgunay/distributed-kvstore/pkg/config"
+	"github.com/jemgunay/distributed-kvstore/pkg/nodes/identity"
 	pb "github.com/jemgunay/distributed-kvstore/pkg/proto"
 )
 
 // Node represents a single service node in the distributed store network.
 type Node struct {
-	Identity
-
+	identity.Identity
 	syncRequestChan chan *pb.SyncMessage
 }
 
-type NodeManager struct {
+type Manager struct {
 	logger   config.Logger
-	identity Identity
+	identity identity.Identity
 
 	initialNodes []string
-	nodeList     []Identity
+	nodeList     []identity.Identity
 	nodesListMu  *sync.Mutex
 
 	registerStream chan Node
 	fanOutStream   chan *pb.SyncMessage
 }
 
-func New(logger config.Logger, port int, nodeAddresses []string) (*NodeManager, error) {
-	address := ":" + strconv.Itoa(port)
-	id := NewIdentity(time.Now().UTC().UnixNano(), address)
+func New(logger config.Logger, port int, nodeAddresses []string) (*Manager, error) {
+	id, err := identity.New(port)
+	if err != nil {
+		return nil, fmt.Errorf("attempting to identify self: %w", err)
+	}
 
-	m := &NodeManager{
+	m := &Manager{
 		logger:   logger,
 		identity: id,
 
 		initialNodes: nodeAddresses,
-		nodeList:     []Identity{id},
+		nodeList:     []identity.Identity{id},
 		nodesListMu:  &sync.Mutex{},
 
 		fanOutStream:   make(chan *pb.SyncMessage, 1<<12),
@@ -84,7 +84,7 @@ func New(logger config.Logger, port int, nodeAddresses []string) (*NodeManager, 
 
 		for {
 			m.identifyNodes()
-			timer := time.NewTimer(time.Second * 10)
+			timer := time.NewTimer(time.Second * 15)
 			<-timer.C
 		}
 	}()
@@ -93,14 +93,13 @@ func New(logger config.Logger, port int, nodeAddresses []string) (*NodeManager, 
 }
 
 // TODO: handle conn shutdown - remove node from stores
-func (m *NodeManager) registerNode(node Node) {
+func (m *Manager) registerNode(node Node) {
 	logger := m.logger.With(zap.Any("identity", node.Identity))
-	logger.Info("registering node in store")
+	logger.Info("establishing sync connection", zap.Any("from", m.identity))
 
 	conn, err := grpc.Dial(node.Address, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
-		// return fmt.Errorf("failed to connect to node server: %w", err)
-		logger.Error("failed to connect to node server", zap.Error(err))
+		logger.Error("failed to connect to node server for sync", zap.Error(err))
 		return
 	}
 	defer conn.Close()
@@ -112,9 +111,8 @@ func (m *NodeManager) registerNode(node Node) {
 	// open indefinitely
 	syncStream, err := client.Sync(context.Background())
 	if err != nil {
-		logger.Error("", zap.Error(err))
+		logger.Error("failed to open sync stream with node", zap.Error(err))
 		return
-		// return fmt.Errorf("failed to open sync stream with node: %w", err)
 	}
 
 	// pull sync requests from node's queue and send to node via node's
@@ -130,17 +128,18 @@ func (m *NodeManager) registerNode(node Node) {
 				break
 			}
 		}
+		logger.Info("done syncing request to node")
 	}
 
 	logger.Warn("sync stream closed due to EOF")
 }
 
-func (m *NodeManager) FanOut() chan *pb.SyncMessage {
+func (m *Manager) FanOut() chan *pb.SyncMessage {
 	return m.fanOutStream
 }
 
-func (m *NodeManager) updateNodeList(nodes map[string]Node) {
-	nodeList := make([]Identity, 0, len(nodes))
+func (m *Manager) updateNodeList(nodes map[string]Node) {
+	nodeList := make([]identity.Identity, 0, len(nodes))
 
 	m.nodesListMu.Lock()
 	defer m.nodesListMu.Unlock()
@@ -152,60 +151,15 @@ func (m *NodeManager) updateNodeList(nodes map[string]Node) {
 	m.nodeList = nodeList
 }
 
-func (m *NodeManager) Nodes() []Identity {
+func (m *Manager) Nodes() []identity.Identity {
 	m.nodesListMu.Lock()
 	defer m.nodesListMu.Unlock()
 	return m.nodeList
 }
 
-type Identity struct {
-	StartTime            int64
-	Address              string
-	Name                 string
-	ID                   string
-	LastMessageTimestamp int64
-}
-
-func (i Identity) ToProto() *pb.Node {
-	return &pb.Node{
-		StartTime:              i.StartTime,
-		Address:                i.Address,
-		Name:                   i.Name,
-		Id:                     i.ID,
-		LatestMessageTimestamp: i.LastMessageTimestamp,
-	}
-}
-
-func FromProto(node *pb.Node) Identity {
-	return Identity{
-		StartTime:            node.GetStartTime(),
-		Address:              node.GetAddress(),
-		Name:                 node.GetName(),
-		ID:                   node.GetId(),
-		LastMessageTimestamp: node.GetLatestMessageTimestamp(),
-	}
-}
-
-func init() {
-	petname.NonDeterministicMode()
-}
-
-func NewIdentity(startTime int64, address string) Identity {
-	name := petname.Generate(3, "-")
-
-	return Identity{
-		StartTime:            startTime,
-		Address:              address,
-		Name:                 name,
-		LastMessageTimestamp: 0,
-		ID:                   strconv.FormatInt(startTime, 10) + "-" + name,
-	}
-}
-
-// TODO: refactor all into NodeDiscoverer
+// TODO: refactor all into nodes.Discoverer
 // attempt to form the initial network with all nodes addressed in the startup flags
-// TODO: do this on a fixed interval to detect and connect to any new nodes
-func (m *NodeManager) identifyNodes() {
+func (m *Manager) identifyNodes() {
 	// build unique a list of all possible nodes, including initially known
 	// nodes and nodes discovered after startup
 	totalNodes := make(map[string]struct{}, len(m.initialNodes))
@@ -213,6 +167,9 @@ func (m *NodeManager) identifyNodes() {
 		totalNodes[n] = struct{}{}
 	}
 	for _, n := range m.Nodes() {
+		if n.ID == m.identity.ID {
+			continue
+		}
 		totalNodes[n.Address] = struct{}{}
 	}
 
@@ -222,7 +179,7 @@ func (m *NodeManager) identifyNodes() {
 	}
 
 	const (
-		timeout   = time.Second * 10
+		timeout   = time.Second * 5
 		retryWait = time.Second
 	)
 
@@ -239,11 +196,12 @@ func (m *NodeManager) identifyNodes() {
 				if err == nil {
 					break
 				}
-				logger.Error("failed to identify node", zap.Error(err))
+				logger.Error("failed to aggregate cluster nodes", zap.Error(err))
 
 				timeout := time.NewTicker(retryWait)
 				select {
 				case <-ctx.Done():
+					logger.Error("timed out attempting to aggregate cluster nodes")
 					return
 				case <-timeout.C:
 				}
@@ -258,11 +216,11 @@ func (m *NodeManager) identifyNodes() {
 	}
 }
 
-func (m *NodeManager) aggregateClusterNodes(ctx context.Context, nodeAddress string, discoveredNodes map[string]Node) error {
-	// create client to connect to the node
+func (m *Manager) aggregateClusterNodes(ctx context.Context, nodeAddress string, discoveredNodes map[string]Node) error {
+	// create client to connect to the node for identification
 	conn, err := grpc.DialContext(ctx, nodeAddress, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
-		return fmt.Errorf("failed to connect to node server: %w", err)
+		return fmt.Errorf("failed to connect to node server for identification: %w", err)
 	}
 	defer conn.Close()
 
@@ -289,7 +247,7 @@ func (m *NodeManager) aggregateClusterNodes(ctx context.Context, nodeAddress str
 		}
 
 		newNode := Node{
-			Identity:        FromProto(node),
+			Identity:        identity.FromProto(node),
 			syncRequestChan: make(chan *pb.SyncMessage, 1<<12),
 		}
 

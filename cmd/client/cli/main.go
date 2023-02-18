@@ -51,7 +51,7 @@ func main() {
 		}
 
 		switch items[0] {
-		case "fetch":
+		case "fetch", "f":
 			var value string
 			ts, err := c.Fetch(items[1], &value)
 			if err != nil {
@@ -60,7 +60,7 @@ func main() {
 			}
 			fmt.Printf("successfully fetched %s (%d)\n", value, ts)
 
-		case "publish":
+		case "publish", "p":
 			if len(items) != 3 {
 				continue
 			}
@@ -70,14 +70,14 @@ func main() {
 			}
 			fmt.Println("successfully published")
 
-		case "delete":
+		case "delete", "d":
 			if err := c.Delete(items[1]); err != nil {
 				fmt.Printf("failed to delete from server: %s\n", err)
 				continue
 			}
 			fmt.Println("successfully deleted")
 
-		case "subscribe":
+		case "subscribe", "s":
 			ch, _, err := c.Subscribe(items[1])
 			if err != nil {
 				fmt.Printf("failed to subscribe to server: %s\n", err)

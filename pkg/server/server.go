@@ -39,13 +39,13 @@ type Server struct {
 	logger      config.Logger
 	grpcServer  *grpc.Server
 	store       Storer
-	nodeManager *nodes.NodeManager // TODO: interface this
+	nodeManager *nodes.Manager // TODO: interface this
 
 	pb.UnimplementedKVStoreServer
 }
 
 // NewServer creates a new gRPC KV synchronised server.
-func NewServer(logger config.Logger, store Storer, nodeManager *nodes.NodeManager) *Server {
+func NewServer(logger config.Logger, store Storer, nodeManager *nodes.Manager) *Server {
 	return &Server{
 		logger:      logger,
 		grpcServer:  grpc.NewServer(),
@@ -172,7 +172,7 @@ func (s *Server) Identify(ctx context.Context, req *pb.IdentityRequest) (*pb.Ide
 	if !ok {
 		return nil, errors.New("failed to extract peer details from context")
 	}
-	s.logger.Info("identify request received", zap.Stringer("addr", p.Addr),
+	s.logger.Info("identify request received", zap.String("addr", p.Addr.String()),
 		zap.String("id", req.Node.GetId()))
 
 	nodeIdentities := s.nodeManager.Nodes()
@@ -195,22 +195,27 @@ func (s *Server) Identify(ctx context.Context, req *pb.IdentityRequest) (*pb.Ide
 func (s *Server) Sync(stream pb.KVStore_SyncServer) error {
 	for {
 		// receive a stream of sync requests from another node
-		resp, err := stream.Recv()
+		msg, err := stream.Recv()
 		if err != nil {
 			if err == io.EOF {
-				break
+				s.logger.Error("sync connection closed due to EOF", zap.Error(err))
+				return nil
 			}
-			return err
+
+			const msg = "sync connection closed due to unexpected error"
+			s.logger.Error(msg, zap.Error(err))
+			return fmt.Errorf(msg+": %w", err)
 		}
 
-		s.logger.Debug("sync_in", zap.Stringer("op", resp.Operation), zap.String("key", resp.Key))
+		s.logger.Debug("sync_in", zap.Stringer("op", msg.Operation),
+			zap.String("key", msg.Key), zap.Int64("ts", msg.GetTimestamp()))
 
+		// TODO: create a SyncMessage with From & ToProto
 		// insert sync operation into this node's store
-		if err := s.store.SyncIn(resp); err != nil {
-			return fmt.Errorf("failed to store sync message: %w", err)
+		if err := s.store.SyncIn(msg); err != nil {
+			const msg = "failed to store sync message"
+			s.logger.Error(msg, zap.Error(err))
+			return fmt.Errorf(msg+": %w", err)
 		}
 	}
-
-	s.logger.Info("sync connection closed")
-	return nil
 }
