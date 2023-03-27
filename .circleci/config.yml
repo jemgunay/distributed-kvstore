@@ -1,31 +1,28 @@
-# Golang CircleCI 2.0 configuration file
-version: 2
+version: 2.1
 jobs:
   build:
+    working_directory: ~/repo
     docker:
-      - image: circleci/golang:1.9
-    working_directory: /go/src/github.com/jemgunay/distributed-kvstore
+      - image: cimg/go:1.19.0
     steps:
       - checkout
       - run: cd cmd/server && go build -race
-      - run: cd cmd/clients/cli && go build -race
-      - run: cd cmd/clients/generate-load && go build -race
-      - run: cd cmd/clients/raw-examples && go build -race
+      - run: cd cmd/client/cli && go build -race
+      - run: cd cmd/client/generate-load && go build -race
+      - run: cd cmd/client/raw-examples && go build -race
 
   verify:
+    working_directory: ~/repo
     docker:
-      - image: circleci/golang:1.9
-    working_directory: /go/src/github.com/jemgunay/distributed-kvstore
+      - image: cimg/go:1.19.0
     steps:
       - checkout
-      - run: go get -u golang.org/x/lint/golint
-      - run: golint $(go list ./... | grep -v /vendor/)
       - run: go vet $(go list ./... | grep -v /vendor/)
 
   test:
+    working_directory: ~/repo
     docker:
-      - image: circleci/golang:1.9
-    working_directory: /go/src/github.com/jemgunay/distributed-kvstore
+      - image: cimg/go:1.19.0
     steps:
       - checkout
       - run: go test -v -race ./...
