@@ -2,34 +2,39 @@
 
 [![CircleCI](https://circleci.com/gh/jemgunay/distributed-kvstore/tree/master.svg?style=svg)](https://circleci.com/gh/jemgunay/distributed-kvstore/tree/master)
 
-A basic eventually consistent distributed key-value store written in Golang. Supports the storage of arbitrary byte values and resolves sync conflicts across nodes. Utilises gRPC and protocol buffers to expose a performant language-agnostic interface. Multiple client examples are also included.
+A basic eventually consistent distributed key-value store written in Golang. 
+Supports the storage of arbitrary byte values and resolves sync conflicts across nodes. 
+Utilises gRPC and protocol buffers to expose a performant language-agnostic interface. Multiple client examples are also included.
 
-## Creating Server Nodes
+## Spawn Cluster
+
+### Docker (Recommended)
+
+```bash
+make docker-build
+make docker-up
+```
+
+### Manual Script
 
 Use the `spawn.sh` script to create N number of nodes at once, linking each of them via a list of `node_address` startup flags:
 ```bash
 cd server/cmd/server
-# Create and link 3 nodes (serving on ports 7001-7003).
+
+# Manually creating a single node (not linked to any other nodes):
+go build && ./server -port=7000
+# Manually creating nodes (linked to other nodes)
+go build && ./server -port=7000 -node_address=":7001" -node_address=":7002"
+# Create and automatically link 3 nodes (serving on ports 7000-7002).
 ./spawn.sh 3
 ```
 
-Manually creating a single node (not linked to any other nodes):
-```bash
-cd server/cmd/server
-go build && ./server -port=7001
-```
-
-Manually creating nodes (linked to other nodes) - provide multiple `node_address` flags, one for each node that this new instance should sync with:
-```bash
-cd server/cmd/server
-go build && ./server -port=7001 -node_address=":7002" -node_address=":7003"
-```
 
 ## Connect to Nodes via a Command-Line Client
 
 ```bash
 cd client/cmd/client-tool
-go build && ./client-tool -port=7001
+go build && ./client-tool -port=7000
 ```
 
 ### Example `client-tool` Input

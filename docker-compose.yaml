@@ -4,8 +4,10 @@ networks:
     driver: bridge
 
 services:
-  kv-server-one:
-    build: .
+  kv-store-1:
+    image: jemgunay/kv-store
+    build:
+      dockerfile: ./Dockerfile
     container_name: kvs-one
     ports:
       - "7001:7000"
@@ -14,8 +16,10 @@ services:
     networks:
       - kvs-net
 
-  kv-server-two:
-    build: .
+  kv-store-2:
+    image: jemgunay/kv-store
+    build:
+      dockerfile: ./Dockerfile
     container_name: kvs-two
     ports:
       - "7002:7000"
@@ -24,8 +28,10 @@ services:
     networks:
       - kvs-net
 
-  kv-server-three:
-    build: .
+  kv-store-3:
+    image: jemgunay/kv-store
+    build:
+      dockerfile: ./Dockerfile
     container_name: kvs-three
     ports:
       - "7003:7000"

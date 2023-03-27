@@ -1,8 +1,8 @@
 package identity
 
 import (
+	"fmt"
 	"net"
-	"os"
 	"strconv"
 	"time"
 
@@ -12,24 +12,27 @@ import (
 )
 
 func init() {
+	// seed random name generation
 	petname.NonDeterministicMode()
 }
 
+// Identity represents a node's identity.
 type Identity struct {
 	StartTime            int64
 	Address              string
 	Name                 string
 	ID                   string
-	LastMessageTimestamp int64
+	LastMessageTimestamp int64 // TODO: implement this
 }
 
+// New initialises a new Identity with a randomised name.
 func New(port int) (Identity, error) {
 	name := petname.Generate(3, "-")
 	startTime := time.Now().UTC().UnixNano()
 
-	hostname, err := os.Hostname()
+	hostname, err := getPrivateIP()
 	if err != nil {
-		return Identity{}, err
+		return Identity{}, fmt.Errorf("attempting to lookup local IP address: %w", err)
 	}
 	address := net.JoinHostPort(hostname, strconv.Itoa(port))
 
@@ -42,6 +45,8 @@ func New(port int) (Identity, error) {
 	}, nil
 }
 
+// ToProto is an adapter for converting between Identity and the protobuf
+// Node equivalent.
 func (i Identity) ToProto() *pb.Node {
 	return &pb.Node{
 		StartTime:              i.StartTime,
@@ -52,6 +57,8 @@ func (i Identity) ToProto() *pb.Node {
 	}
 }
 
+// FromProto is an adapter for converting between a protobuf Node and the
+// Identity equivalent.
 func FromProto(node *pb.Node) Identity {
 	return Identity{
 		StartTime:            node.GetStartTime(),
@@ -60,4 +67,15 @@ func FromProto(node *pb.Node) Identity {
 		ID:                   node.GetId(),
 		LastMessageTimestamp: node.GetLatestMessageTimestamp(),
 	}
+}
+
+func getPrivateIP() (string, error) {
+	conn, err := net.Dial("udp", "8.8.8.8:80")
+	if err != nil {
+		return "", err
+	}
+	defer conn.Close()
+
+	localAddr := conn.LocalAddr().(*net.UDPAddr)
+	return localAddr.IP.String(), nil
 }
