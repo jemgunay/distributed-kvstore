@@ -15,3 +15,7 @@ docker-build:
 .PHONY: docker-up
 docker-up:
 	docker compose up --build
+
+.PHONY: k8s-up
+k8s-up:
+	kubectl apply -f k8s/kv-store-service.yaml

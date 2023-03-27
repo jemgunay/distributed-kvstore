@@ -1,0 +1,36 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: kv-store-deployment
+spec:
+  selector:
+    matchLabels:
+      app: kv-store-server
+  replicas: 3
+  template:
+    metadata:
+      labels:
+        app: kv-store-server
+    spec:
+      containers:
+        - name: kv-store
+          image: jemgunay/kv-store
+          ports:
+            - containerPort: 7000
+          env:
+            - name: NODE_ADDRESSES
+              value: ""
+              # value: "kvs-two:7000,kvs-three:7000"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: kv-store-service
+spec:
+  selector:
+    app: kv-store-server
+  ports:
+    - protocol: "TCP"
+      port: 7001
+      targetPort: 7000
+  type: LoadBalancer
