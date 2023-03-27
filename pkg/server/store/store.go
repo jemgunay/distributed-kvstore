@@ -9,8 +9,8 @@ import (
 
 	"github.com/OneOfOne/xxhash"
 
+	"github.com/jemgunay/distributed-kvstore/pkg/core"
 	pb "github.com/jemgunay/distributed-kvstore/pkg/proto"
-	"github.com/jemgunay/distributed-kvstore/pkg/server"
 )
 
 // represents a key/value record in the store
@@ -28,7 +28,7 @@ type subscription struct {
 	ctx    context.Context
 }
 
-var _ server.Storer = (*Store)(nil)
+var _ core.Storer = (*Store)(nil)
 
 // Store is an operation-based KV store to facilitate a distributed server implementation.
 type Store struct {
@@ -241,6 +241,7 @@ func (s *Store) SyncIn(syncMsg *pb.SyncMessage) error {
 		performSync: false,
 		respCh:      make(chan error, 1),
 	}
+	
 	// if buffer is full, fail request with error
 	select {
 	case s.modifyReqQueue <- req:

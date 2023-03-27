@@ -22,14 +22,14 @@ func main() {
 
 	// connect to gRPC server
 	fmt.Printf("connecting to server on %s\n", addr)
-	c, err := client.NewKVClient(addr)
+	kvClient, err := client.NewClient(addr)
 	if err != nil {
 		fmt.Printf("failed to create client: %s", err)
 		return
 	}
-	defer c.Close()
+	defer kvClient.Close()
 
-	c.DebugLog = *debugLogsEnabled
+	kvClient.DebugLog = *debugLogsEnabled
 
 	reader := bufio.NewReader(os.Stdin)
 	for {
@@ -53,7 +53,7 @@ func main() {
 		switch items[0] {
 		case "fetch", "f":
 			var value string
-			ts, err := c.Fetch(items[1], &value)
+			ts, err := kvClient.Fetch(items[1], &value)
 			if err != nil {
 				fmt.Printf("failed to fetch from server: %s\n", err)
 				continue
@@ -64,21 +64,21 @@ func main() {
 			if len(items) != 3 {
 				continue
 			}
-			if err := c.Publish(items[1], items[2]); err != nil {
+			if err := kvClient.Publish(items[1], items[2]); err != nil {
 				fmt.Printf("failed to publish to server: %s\n", err)
 				continue
 			}
 			fmt.Println("successfully published")
 
 		case "delete", "d":
-			if err := c.Delete(items[1]); err != nil {
+			if err := kvClient.Delete(items[1]); err != nil {
 				fmt.Printf("failed to delete from server: %s\n", err)
 				continue
 			}
 			fmt.Println("successfully deleted")
 
 		case "subscribe", "s":
-			ch, _, err := c.Subscribe(items[1])
+			ch, _, err := kvClient.Subscribe(items[1])
 			if err != nil {
 				fmt.Printf("failed to subscribe to server: %s\n", err)
 				continue

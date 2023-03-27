@@ -16,41 +16,29 @@ import (
 	"google.golang.org/grpc/peer"
 
 	"github.com/jemgunay/distributed-kvstore/pkg/config"
+	"github.com/jemgunay/distributed-kvstore/pkg/core"
 	"github.com/jemgunay/distributed-kvstore/pkg/nodes"
 	pb "github.com/jemgunay/distributed-kvstore/pkg/proto"
 )
-
-// Storer defines the store methods required by a replicated KV store.
-type Storer interface {
-	Get(key string) (value []byte, timestamp int64, err error)
-	Put(key string, value []byte, timestamp int64) error
-	Delete(key string, timestamp int64) error
-	Subscribe(ctx context.Context, key string) (chan *pb.FetchResponse, error)
-
-	// GetSyncStream returns a SyncMessage stream for polling messages to sync to other nodes.
-	GetSyncStream() <-chan *pb.SyncMessage
-	// SyncIn receives a SyncMessage and attempts to insert the corresponding operation into the store.
-	SyncIn(*pb.SyncMessage) error
-}
 
 // Server is a gRPC KV synchronised server which satisfies both the KVServiceServer and SyncServiceServer
 // interfaces.
 type Server struct {
 	logger      config.Logger
+	store       core.Storer
+	nodeManager core.Noder
 	grpcServer  *grpc.Server
-	store       Storer
-	nodeManager *nodes.Manager // TODO: interface this
 
 	pb.UnimplementedKVStoreServer
 }
 
 // NewServer creates a new gRPC KV synchronised server.
-func NewServer(logger config.Logger, store Storer, nodeManager *nodes.Manager) *Server {
+func NewServer(logger config.Logger, store core.Storer, nodeManager *nodes.Manager) *Server {
 	return &Server{
 		logger:      logger,
-		grpcServer:  grpc.NewServer(),
 		store:       store,
 		nodeManager: nodeManager,
+		grpcServer:  grpc.NewServer(),
 	}
 }
 

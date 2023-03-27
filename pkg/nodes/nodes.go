@@ -12,6 +12,7 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 
 	"github.com/jemgunay/distributed-kvstore/pkg/config"
+	"github.com/jemgunay/distributed-kvstore/pkg/core"
 	"github.com/jemgunay/distributed-kvstore/pkg/nodes/identity"
 	pb "github.com/jemgunay/distributed-kvstore/pkg/proto"
 )
@@ -22,6 +23,8 @@ type Node struct {
 	identity.Identity
 	syncRequestChan chan *pb.SyncMessage
 }
+
+var _ core.Noder = (*Manager)(nil)
 
 // Manager manages node connection lifecycle and communications.
 type Manager struct {

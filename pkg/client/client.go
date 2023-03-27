@@ -13,37 +13,39 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 
+	"github.com/jemgunay/distributed-kvstore/pkg/core"
 	pb "github.com/jemgunay/distributed-kvstore/pkg/proto"
 )
 
-// TODO: interface assert this
-// var _ = (*KVClient)(nil)
+var _ core.Client = (*Client)(nil)
 
-// KVClient is a gRPC KV client.
-type KVClient struct {
+// Client is a gRPC KV client.
+type Client struct {
 	*grpc.ClientConn
 	ServiceClient pb.KVStoreClient
 	Timeout       time.Duration
 	DebugLog      bool
+	Logger        func(format string, v ...any)
 }
 
-// NewKVClient creates a new gRPC KV client.
-func NewKVClient(address string) (*KVClient, error) {
+// NewClient creates a new gRPC KV client.
+func NewClient(address string) (*Client, error) {
 	conn, err := grpc.Dial(address, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
 		return nil, fmt.Errorf("failed to connect to server: %w", err)
 	}
 
-	return &KVClient{
+	return &Client{
 		ClientConn:    conn,
 		ServiceClient: pb.NewKVStoreClient(conn),
 		Timeout:       time.Second * 10,
+		Logger:        log.Printf,
 	}, nil
 }
 
 // Publish performs a publish request over gRPC in order to publish a key/value pair.
-func (c *KVClient) Publish(key string, value any) error {
-	c.Printf("[publish] %s -> %#v", key, value)
+func (c *Client) Publish(key string, value any) error {
+	c.debugf("[publish] %s -> %#v", key, value)
 
 	ctx, cancel := context.WithTimeout(context.Background(), c.Timeout)
 	defer cancel()
@@ -69,8 +71,8 @@ func (c *KVClient) Publish(key string, value any) error {
 }
 
 // Fetch performs a fetch request over gRPC in order to retrieve the value that corresponds with the specified key.
-func (c *KVClient) Fetch(key string, value any) (int64, error) {
-	c.Printf("[fetch] %s", key)
+func (c *Client) Fetch(key string, value any) (int64, error) {
+	c.debugf("[fetch] %s", key)
 
 	ctx, cancel := context.WithTimeout(context.Background(), c.Timeout)
 	defer cancel()
@@ -96,8 +98,8 @@ func (c *KVClient) Fetch(key string, value any) (int64, error) {
 }
 
 // Delete performs a delete request over gRPC in order to delete the record that corresponds with the specified key.
-func (c *KVClient) Delete(key string) error {
-	c.Printf("[delete] %s", key)
+func (c *Client) Delete(key string) error {
+	c.debugf("[delete] %s", key)
 
 	ctx, cancel := context.WithTimeout(context.Background(), c.Timeout)
 	defer cancel()
@@ -118,8 +120,8 @@ func (c *KVClient) Delete(key string) error {
 // allows a client to receive changes to the specified key when they occur instead of repeatedly making a request for
 // the corresponding value. The response channel will be closed when the stream EOFs. The cancel func can be used to
 // prematurely cancel the subscription connection.
-func (c *KVClient) Subscribe(key string) (chan *pb.FetchResponse, context.CancelFunc, error) {
-	c.Printf("[subscribe] %s", key)
+func (c *Client) Subscribe(key string) (chan *pb.FetchResponse, context.CancelFunc, error) {
+	c.debugf("[subscribe] %s", key)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	// subscribe to changes for the specified key
@@ -137,7 +139,7 @@ func (c *KVClient) Subscribe(key string) (chan *pb.FetchResponse, context.Cancel
 				if err == io.EOF {
 					break
 				}
-				c.Printf("failed to read from %s subscription: %s", key, err)
+				c.debugf("failed to read from %s subscription: %s", key, err)
 				break
 			}
 
@@ -145,7 +147,7 @@ func (c *KVClient) Subscribe(key string) (chan *pb.FetchResponse, context.Cancel
 		}
 
 		// clean up
-		c.Printf("subscription to %s closed", key)
+		c.debugf("subscription to %s closed", key)
 		cancel()
 		close(ch)
 		// nil channel to prevent panic on unexpected write
@@ -156,9 +158,9 @@ func (c *KVClient) Subscribe(key string) (chan *pb.FetchResponse, context.Cancel
 }
 
 // Printf wraps log.Printf() to only write logs if logging is enabled.
-func (c *KVClient) Printf(format string, v ...any) {
+func (c *Client) debugf(format string, v ...any) {
 	if !c.DebugLog {
 		return
 	}
-	log.Printf(format, v...)
+	c.Logger(format, v...)
 }

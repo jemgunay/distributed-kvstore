@@ -25,7 +25,7 @@ func main() {
 
 	// connect to gRPC server
 	log.Printf("connecting to server on port %d", port)
-	kvClient, err := client.NewKVClient(":" + strconv.Itoa(port))
+	kvClient, err := client.NewClient(":" + strconv.Itoa(port))
 	if err != nil {
 		log.Printf("failed to create client: %s", err)
 		return

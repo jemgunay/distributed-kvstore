@@ -12,6 +12,7 @@ import (
 	"golang.org/x/sync/errgroup"
 
 	"github.com/jemgunay/distributed-kvstore/pkg/client"
+	"github.com/jemgunay/distributed-kvstore/pkg/core"
 )
 
 var (
@@ -30,18 +31,18 @@ func main() {
 	}
 	log.Printf("generating load for %d services", numServices)
 
-	startTime := time.Now()
+	startTime := time.Now().UTC()
 	eg := errgroup.Group{}
 
 	for i := 0; i < numServices; i++ {
 		i := i
 
 		// create client
-		c, err := client.NewKVClient(":" + strconv.Itoa(7001+i))
+		kvClient, err := client.NewClient(":" + strconv.Itoa(7001+i))
 		if err != nil {
 			log.Printf("failed to create client: %s", err)
 		}
-		defer c.Close()
+		defer kvClient.Close()
 
 		eg.Go(func() error {
 			// generate load keys
@@ -61,15 +62,15 @@ func main() {
 
 			// action load on nodes
 			for j := 0; j < len(keys); j++ {
-				if err := c.Publish(keys[j], randStr(100)); err != nil {
+				if err := kvClient.Publish(keys[j], randStr(100)); err != nil {
 					return fmt.Errorf("failed to publish to server: %w", err)
 				}
 			}
 
-			startFetching(c, &eg, fetchKeys)
-			startFetching(c, &eg, fetchKeys)
-			startFetching(c, &eg, fetchKeys)
-			startDeleting(c, &eg, deleteKeys)
+			startFetching(kvClient, &eg, fetchKeys)
+			startFetching(kvClient, &eg, fetchKeys)
+			startFetching(kvClient, &eg, fetchKeys)
+			startDeleting(kvClient, &eg, deleteKeys)
 
 			return nil
 		})
@@ -88,7 +89,7 @@ func main() {
 		totalFetch, totalDelete, time.Since(startTime))
 }
 
-func startFetching(client *client.KVClient, eg *errgroup.Group, keys []string) {
+func startFetching(client core.Client, eg *errgroup.Group, keys []string) {
 	eg.Go(func() error {
 		for i := 0; i < len(keys); i++ {
 			var value string
@@ -101,7 +102,7 @@ func startFetching(client *client.KVClient, eg *errgroup.Group, keys []string) {
 	})
 }
 
-func startDeleting(client *client.KVClient, eg *errgroup.Group, keys []string) {
+func startDeleting(client core.Client, eg *errgroup.Group, keys []string) {
 	eg.Go(func() error {
 		for i := 0; i < len(keys); i++ {
 			if err := client.Delete(keys[i]); err != nil {
