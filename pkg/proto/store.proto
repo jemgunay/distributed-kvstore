@@ -1,0 +1,92 @@
+syntax = "proto3";
+
+package kv;
+option go_package = "./proto;kv";
+
+// KVStore implements the key/value store operations.
+service KVStore {
+  // Publish updates a key/value pair in the store, along with triggering any
+  // required sync operations.
+  rpc Publish (PublishRequest) returns (Empty);
+  // Fetch fetches the value for a given key from the store.
+  rpc Fetch (FetchRequest) returns (FetchResponse);
+  // Delete deletes a key from the store.
+  rpc Delete (DeleteRequest) returns (Empty);
+  // Subscribe provides a stream of updates (driven by Publish calls) to a given
+  // subscriber.
+  rpc Subscribe (FetchRequest) returns (stream FetchResponse);
+
+  // Identity provides the identity of the sending node, and receives the target
+  // node's identity in return.
+  rpc Identify (IdentityRequest) returns (IdentityResponse);
+  // Sync provides a stream of sync update messages from one server node to
+  // another.
+  rpc Sync (stream SyncMessage) returns (Empty);
+}
+
+// Empty represents an empty response.
+message Empty {}
+
+// PublishRequest is the request for a Publish operation.
+message PublishRequest {
+  string key = 1;
+  bytes value = 2;
+}
+
+// PublishRequest is the request for a Fetch operation.
+message FetchRequest {
+  string key = 1;
+}
+
+// FetchResponse is the response for a Fetch operation, containing the value for
+// the requested key and the timestamp that the key was last updated.
+message FetchResponse {
+  bytes value = 1;
+  int64 timestamp = 2;
+}
+
+// DeleteRequest is the request for a Delete operation.
+message DeleteRequest {
+  string key = 1;
+}
+
+message IdentityRequest {
+  Node node = 1;
+}
+
+message IdentityResponse {
+  // Nodes is a mapping of a node's ID to its details.
+  map<string, Node> nodes = 1;
+}
+
+// IdentityMessage is the identity of a server node.
+message Node {
+  // StartTime is the nano timestamp the node started up. This is used to
+  // programmatically identify nodes.
+  int64 start_time = 1;
+  // Name is used to easily identify nodes (human-readable).
+  string name = 2;
+  // ID identifies the node - is should be a combination of the start_time and
+  // name fields.
+  string id = 3;
+  // address is the node's HTTP server address.
+  string address = 4;
+  // latest_message_timestamp is the timestamp of the most recently seen
+  // message.
+  int64 latest_message_timestamp = 5;
+}
+
+// OperationVariant represents the type of message operation, i.e. update or
+// delete a key.
+enum OperationVariant {
+  UPDATE = 0;
+  DELETE = 1;
+}
+
+// SyncMessage encapsulates an update/delete message for a given key/value pair.
+message SyncMessage {
+  string key = 1;
+  bytes value = 2;
+  int64 timestamp = 3;
+  OperationVariant operation = 4;
+}
