@@ -35,8 +35,9 @@ type Manager struct {
 	nodeList     []identity.Identity
 	nodesListMu  *sync.Mutex
 
-	registerStream chan Node
-	fanOutStream   chan *pb.SyncMessage
+	registerStream   chan Node
+	deregisterStream chan Node
+	fanOutStream     chan *pb.SyncMessage
 }
 
 // New initialises a new Manager which connects to the provided initial set of
@@ -55,8 +56,9 @@ func New(logger config.Logger, port int, nodeAddresses []string) (*Manager, erro
 		nodeList:     []identity.Identity{id},
 		nodesListMu:  &sync.Mutex{},
 
-		fanOutStream:   make(chan *pb.SyncMessage, 1<<12),
-		registerStream: make(chan Node, 1<<5),
+		registerStream:   make(chan Node, 1<<5),
+		deregisterStream: make(chan Node, 1<<5),
+		fanOutStream:     make(chan *pb.SyncMessage, 1<<12),
 	}
 
 	go func() {
@@ -75,12 +77,15 @@ func New(logger config.Logger, port int, nodeAddresses []string) (*Manager, erro
 				// only store node once successfully established connection
 				nodes[node.ID] = node
 
+			case node := <-m.deregisterStream:
+				close(node.syncRequestChan)
+				delete(nodes, node.ID)
+				m.updateNodeList(nodes)
+
 			case msg := <-m.fanOutStream:
 				for _, node := range nodes {
 					node.syncRequestChan <- msg
 				}
-
-				// TODO: handle node disconnect - remove from nodes && updateNodeList
 			}
 		}
 	}()
@@ -91,18 +96,22 @@ func New(logger config.Logger, port int, nodeAddresses []string) (*Manager, erro
 
 		for {
 			m.identifyNodes()
-			timer := time.NewTimer(time.Second * 15)
-			<-timer.C
+			time.Sleep(time.Second * 15)
 		}
 	}()
 
 	return m, nil
 }
 
-// TODO: handle conn shutdown - remove node from stores
 func (m *Manager) registerNode(node Node) {
 	logger := m.logger.With(zap.Any("identity", node.Identity))
 	logger.Info("establishing sync connection", zap.Any("from", m.identity))
+
+	defer func() {
+		// trigger node deregistration on connection closure
+		logger.Error("deregistering node")
+		m.deregisterStream <- node
+	}()
 
 	conn, err := grpc.Dial(node.Address, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
@@ -127,7 +136,7 @@ func (m *Manager) registerNode(node Node) {
 	for req := range node.syncRequestChan {
 		// TODO: batch up sync requests, flush every 100ms/every 100 messages (opt configurable)
 		if err := syncStream.Send(req); err != nil {
-			// TODO: on error, retry x times. On retry failure, attempt to feed back into queue, or create persistent in-memory backup queue to reprocess later?
+			// TODO: on error, retry x times. On retry failure, drop node
 			logger.Error("failed to send sync request to node", zap.Error(err),
 				zap.String("key", req.Key))
 

@@ -241,7 +241,7 @@ func (s *Store) SyncIn(syncMsg *pb.SyncMessage) error {
 		performSync: false,
 		respCh:      make(chan error, 1),
 	}
-	
+
 	// if buffer is full, fail request with error
 	select {
 	case s.modifyReqQueue <- req:
@@ -253,6 +253,6 @@ func (s *Store) SyncIn(syncMsg *pb.SyncMessage) error {
 
 func hashKey(key string) uint64 {
 	h := xxhash.New64()
-	h.WriteString(key) // can't actually error
+	h.WriteString(key) // can't actually error so safe to ignore
 	return h.Sum64()
 }

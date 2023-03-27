@@ -8,7 +8,8 @@ jobs:
     steps:
       - checkout
       - run: cd cmd/server && go build -race
-      - run: cd cmd/clients/client-tool && go build -race
+      - run: cd cmd/clients/cli && go build -race
+      - run: cd cmd/clients/generate-load && go build -race
       - run: cd cmd/clients/raw-examples && go build -race
 
   verify:
