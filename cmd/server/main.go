@@ -26,11 +26,11 @@ func main() {
 	kvServer := server.NewServer(logger, kvStore, nodeManager)
 
 	// start serving
-	logger.Info("starting HTTP server", zap.Int("pid", os.Getpid()), zap.Int("port", cfg.Port))
+	logger.Info("starting kv server", zap.Int("pid", os.Getpid()), zap.Int("port", cfg.Port))
 	if err := kvServer.Start(cfg.Port); err != nil {
-		logger.Error("HTTP server shut down unexpectedly", zap.Error(err))
+		logger.Error("kv server shut down unexpectedly", zap.Error(err))
 		os.Exit(1)
 	}
 
-	logger.Info("server shut down gracefully")
+	logger.Info("kv server shut down gracefully")
 }

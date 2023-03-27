@@ -25,12 +25,12 @@ func main() {
 
 	// connect to gRPC server
 	log.Printf("connecting to server on port %d", port)
-	c, err := client.NewKVClient(":" + strconv.Itoa(port))
+	kvClient, err := client.NewKVClient(":" + strconv.Itoa(port))
 	if err != nil {
 		log.Printf("failed to create client: %s", err)
 		return
 	}
-	defer c.Close()
+	defer kvClient.Close()
 
 	// publish some records
 	data := []struct {
@@ -48,21 +48,21 @@ func main() {
 	}
 
 	for _, d := range data {
-		if err := c.Publish(d.key, d.value); err != nil {
+		if err := kvClient.Publish(d.key, d.value); err != nil {
 			log.Printf("failed to publish %s: %s", d.key, err)
 			return
 		}
 	}
 
 	// delete an existing record
-	/*if err := c.Delete("animals"); err != nil {
+	/*if err := kvClient.Delete("animals"); err != nil {
 		log.Printf("failed to delete: %s", err)
 		return
 	}*/
 
 	// retrieve an existing records
 	var animals []string
-	ts, err := c.Fetch("animals", &animals)
+	ts, err := kvClient.Fetch("animals", &animals)
 	if err != nil {
 		log.Printf("failed to fetch: %s", err)
 		return
@@ -70,7 +70,7 @@ func main() {
 	log.Printf("fetched animals: %v (created at %d)", animals, ts)
 
 	var car *vehicle
-	ts, err = c.Fetch("vehicle", &car)
+	ts, err = kvClient.Fetch("vehicle", &car)
 	if err != nil {
 		log.Printf("failed to fetch: %s", err)
 		return

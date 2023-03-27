@@ -16,12 +16,14 @@ import (
 	pb "github.com/jemgunay/distributed-kvstore/pkg/proto"
 )
 
-// Node represents a single service node in the distributed store network.
+// Node represents a single service node in the distributed store network. It
+// maps the identity to its sync channel.
 type Node struct {
 	identity.Identity
 	syncRequestChan chan *pb.SyncMessage
 }
 
+// Manager manages node connection lifecycle and communications.
 type Manager struct {
 	logger   config.Logger
 	identity identity.Identity
@@ -34,6 +36,8 @@ type Manager struct {
 	fanOutStream   chan *pb.SyncMessage
 }
 
+// New initialises a new Manager which connects to the provided initial set of
+// node addresses.
 func New(logger config.Logger, port int, nodeAddresses []string) (*Manager, error) {
 	id, err := identity.New(port)
 	if err != nil {
@@ -125,15 +129,14 @@ func (m *Manager) registerNode(node Node) {
 				zap.String("key", req.Key))
 
 			if err == io.EOF {
+				logger.Warn("sync stream closed due to EOF")
 				break
 			}
 		}
-		logger.Info("done syncing request to node")
 	}
-
-	logger.Warn("sync stream closed due to EOF")
 }
 
+// FanOut returns the channel for fanning out sync messages.
 func (m *Manager) FanOut() chan *pb.SyncMessage {
 	return m.fanOutStream
 }
@@ -151,13 +154,14 @@ func (m *Manager) updateNodeList(nodes map[string]Node) {
 	m.nodeList = nodeList
 }
 
+// Nodes returns all connected node identities. It is concurrency safe.
 func (m *Manager) Nodes() []identity.Identity {
 	m.nodesListMu.Lock()
 	defer m.nodesListMu.Unlock()
 	return m.nodeList
 }
 
-// TODO: refactor all into nodes.Discoverer
+// TODO: refactor all into a nodes.Discoverer
 // attempt to form the initial network with all nodes addressed in the startup flags
 func (m *Manager) identifyNodes() {
 	// build unique a list of all possible nodes, including initially known
