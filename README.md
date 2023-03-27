@@ -1,6 +1,6 @@
 # Distributed gRPC Key-Value Store
 
-[![CircleCI](https://circleci.com/gh/jemgunay/distributed-kvstore/tree/master.svg?style=svg)](https://circleci.com/gh/jemgunay/distributed-kvstore/tree/master)
+[![CircleCI](https://dl.circleci.com/status-badge/img/gh/jemgunay/distributed-kvstore/tree/master.svg?style=svg)](https://dl.circleci.com/status-badge/redirect/gh/jemgunay/distributed-kvstore/tree/master)
 
 A basic eventually-consistent distributed key-value store written in Golang. 
 Supports the storage of arbitrary byte values and resolves sync conflicts via message timestamp across nodes. 
