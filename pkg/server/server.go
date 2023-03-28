@@ -17,7 +17,6 @@ import (
 
 	"github.com/jemgunay/distributed-kvstore/pkg/config"
 	"github.com/jemgunay/distributed-kvstore/pkg/core"
-	"github.com/jemgunay/distributed-kvstore/pkg/nodes"
 	pb "github.com/jemgunay/distributed-kvstore/pkg/proto"
 )
 
@@ -33,7 +32,7 @@ type Server struct {
 }
 
 // NewServer creates a new gRPC KV synchronised server.
-func NewServer(logger config.Logger, store core.Storer, nodeManager *nodes.Manager) *Server {
+func NewServer(logger config.Logger, store core.Storer, nodeManager core.Noder) *Server {
 	return &Server{
 		logger:      logger,
 		store:       store,

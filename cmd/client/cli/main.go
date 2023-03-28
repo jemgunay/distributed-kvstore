@@ -12,17 +12,15 @@ import (
 	"github.com/jemgunay/distributed-kvstore/pkg/client"
 )
 
-var addr = "localhost:7000"
-
 func main() {
 	// parse flags
-	flag.StringVar(&addr, "addr", addr, "the target server's address")
+	addr := flag.String("addr", "localhost:7000", "the target server's address")
 	debugLogsEnabled := flag.Bool("logs_enabled", false, "whether debug logs should be enabled")
 	flag.Parse()
 
 	// connect to gRPC server
-	fmt.Printf("connecting to server on %s\n", addr)
-	kvClient, err := client.NewClient(addr)
+	fmt.Printf("connecting to server on %s\n", *addr)
+	kvClient, err := client.NewClient(*addr)
 	if err != nil {
 		fmt.Printf("failed to create client: %s", err)
 		return
