@@ -9,7 +9,7 @@ import (
 	"github.com/jemgunay/distributed-kvstore/pkg/config"
 	"github.com/jemgunay/distributed-kvstore/pkg/nodes"
 	"github.com/jemgunay/distributed-kvstore/pkg/server"
-	"github.com/jemgunay/distributed-kvstore/pkg/server/store"
+	"github.com/jemgunay/distributed-kvstore/pkg/store"
 )
 
 func main() {
